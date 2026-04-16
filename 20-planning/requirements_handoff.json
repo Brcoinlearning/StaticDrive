@@ -1,0 +1,575 @@
+{
+  "meta": {
+    "version": "1.0",
+    "created_at": "2026-04-13",
+    "status": "ready_for_development",
+    "project_name": "文件管理服务"
+  },
+  "phase_summary": {
+    "phase_1_boundary_convergence": {
+      "status": "completed",
+      "deliverable": "业务规则备忘录 v1.1",
+      "artifacts": [
+        "20-planning/业务规则备忘录.md"
+      ]
+    },
+    "phase_2_architecture_decomposition": {
+      "status": "completed",
+      "deliverable": "架构设计文档 + 任务分解路线图",
+      "artifacts": [
+        "20-planning/架构设计.md",
+        "20-planning/任务分解与路线图.md"
+      ]
+    },
+    "phase_3_contract_solidification": {
+      "status": "completed",
+      "deliverable": "Gherkin测试用例",
+      "artifacts": [
+        "20-planning/Gherkin测试用例.md"
+      ]
+    },
+    "phase_4_handoff": {
+      "status": "completed",
+      "deliverable": "requirements_handoff.json",
+      "artifacts": [
+        "20-planning/requirements_handoff.json"
+      ]
+    }
+  },
+  "business_rules_memo": {
+    "requirement_overview": {
+      "name": "本地文件管理与发布服务",
+      "description": "运行于1panel管理的MiniPC上的文件管理服务，为本地智能体'书童四九'提供文件存储能力，并通过静态网页服务向外部用户提供HTTP访问",
+      "background": "部署于本地MiniPC，由1panel管理。本地智能体'书童四九'调用云端大模型API并生成文件，需要存储并提供HTTP访问。系统是大项目'书童四九'的子功能模块，需要预留用户系统接口。",
+      "objectives": [
+        "为智能体提供文件存储API",
+        "为外部用户提供HTTP访问能力",
+        "防止越权访问（URL hash处理）",
+        "支持内容搜索与管理"
+      ]
+    },
+    "functional_requirements": {
+      "mvp": [
+        {
+          "id": "FR-001",
+          "title": "文件上传与存储",
+          "description": "接收书童四九智能体通过API上传的文件，存储到工作目录",
+          "priority": "must",
+          "acceptance_criteria": [
+            "接收HTTP API上传的文件",
+            "文件按原文件名存储在本地工作目录",
+            "为每个文件生成唯一hash标识",
+            "保存文件元数据（文件名、大小、上传时间、所属用户等）"
+          ]
+        },
+        {
+          "id": "FR-002",
+          "title": "富文本保存与查看",
+          "description": "接收书童四九智能体保存的富文本内容，支持HTML渲染展示",
+          "priority": "must",
+          "acceptance_criteria": [
+            "接收富文本内容（HTML格式）",
+            "保存富文本及其元数据（标题等）",
+            "支持以HTML形式渲染展示",
+            "富文本内容可被搜索"
+          ]
+        },
+        {
+          "id": "FR-003",
+          "title": "内容列表展示",
+          "description": "展示用户发布的内容列表，支持分页和排序",
+          "priority": "must",
+          "acceptance_criteria": [
+            "用户只能查看自己发布的内容列表",
+            "支持分页展示",
+            "支持按创建时间排序",
+            "支持按文件名排序",
+            "列表项显示文件名、上传时间、文件大小"
+          ]
+        },
+        {
+          "id": "FR-004",
+          "title": "内容搜索",
+          "description": "支持按文件名/标题搜索发布的内容",
+          "priority": "must",
+          "acceptance_criteria": [
+            "支持按文件名搜索（必须）",
+            "支持按富文本标题搜索（可选）",
+            "提交式搜索（非实时）",
+            "搜索结果高亮匹配关键字"
+          ]
+        },
+        {
+          "id": "FR-005",
+          "title": "内容详情查看",
+          "description": "查看单个内容的详细信息，并提供下载访问",
+          "priority": "must",
+          "acceptance_criteria": [
+            "展示文件名、文件大小",
+            "富文本内容支持HTML渲染展示",
+            "其他文件支持下载",
+            "URL使用hash标识（如 /files/a7f8c9b2d3e4f5.html）"
+          ]
+        },
+        {
+          "id": "FR-006",
+          "title": "内容管理（CRUD）",
+          "description": "用户对自己发布的内容有完整的增删改查权限",
+          "priority": "must",
+          "acceptance_criteria": [
+            "创建：上传文件/保存富文本",
+            "读取：查看列表、搜索、详情",
+            "更新：修改元数据/内容",
+            "删除：删除自己的内容"
+          ]
+        },
+        {
+          "id": "FR-007",
+          "title": "分享链接生成",
+          "description": "为内容生成可分享的URL，允许外部用户访问",
+          "priority": "must",
+          "acceptance_criteria": [
+            "生成包含hash的分享URL",
+            "外部用户通过分享URL可访问内容",
+            "支持撤销分享链接"
+          ]
+        },
+        {
+          "id": "FR-008",
+          "title": "Open API接口",
+          "description": "提供HTTP API供书童四九智能体调用",
+          "priority": "must",
+          "acceptance_criteria": [
+            "保存文件API",
+            "保存富文本API",
+            "获取内容列表API",
+            "搜索内容API",
+            "删除内容API",
+            "使用API Key进行身份识别"
+          ]
+        }
+      ],
+      "post_mvp": [
+        {
+          "id": "FR-009",
+          "title": "访问次数统计",
+          "description": "统计内容的访问次数",
+          "priority": "could"
+        },
+        {
+          "id": "FR-010",
+          "title": "文件生命周期管理",
+          "description": "支持文件自动过期、手动删除、空间限制管理",
+          "priority": "should"
+        }
+      ]
+    },
+    "business_rules": [
+      {
+        "id": "BR-001",
+        "title": "内容归属规则",
+        "description": "所有内容必须归属于某个用户（通过API Key识别）"
+      },
+      {
+        "id": "BR-002",
+        "title": "访问权限规则",
+        "description": "用户对自己内容有完整权限，对别人内容只能通过分享链接访问"
+      },
+      {
+        "id": "BR-003",
+        "title": "URL Hash规则",
+        "description": "对外URL使用hash标识，不暴露原始文件名"
+      },
+      {
+        "id": "BR-004",
+        "title": "分享链接规则",
+        "description": "分享链接支持多种安全配置（一次性、永久、可撤销）"
+      },
+      {
+        "id": "BR-005",
+        "title": "搜索规则",
+        "description": "搜索基于文件名和标题，优先标题匹配"
+      }
+    ],
+    "data_entities": [
+      {
+        "name": "User",
+        "description": "用户实体（预留接口）",
+        "fields": [
+          {"name": "user_id", "type": "string", "constraints": "唯一标识"},
+          {"name": "api_key", "type": "string", "constraints": "用于API调用认证"},
+          {"name": "username", "type": "string", "constraints": "可选"},
+          {"name": "created_at", "type": "datetime", "constraints": "创建时间"}
+        ]
+      },
+      {
+        "name": "Content",
+        "description": "内容实体（聚合根）",
+        "fields": [
+          {"name": "content_id", "type": "string", "constraints": "唯一标识"},
+          {"name": "user_id", "type": "string", "constraints": "关联到用户"},
+          {"name": "type", "type": "enum", "constraints": "file | rich_text"},
+          {"name": "title", "type": "string", "constraints": "标题/文件名"},
+          {"name": "content_hash", "type": "string", "constraints": "用于URL的hash标识"},
+          {"name": "file_path", "type": "string", "constraints": "本地存储路径（file类型）"},
+          {"name": "original_filename", "type": "string", "constraints": "原始文件名（file类型）"},
+          {"name": "file_size", "type": "integer", "constraints": "文件大小（字节）"},
+          {"name": "rich_text_content", "type": "text", "constraints": "富文本内容（rich_text类型）"},
+          {"name": "metadata", "type": "json", "constraints": "扩展元数据"},
+          {"name": "created_at", "type": "datetime", "constraints": "创建时间"},
+          {"name": "updated_at", "type": "datetime", "constraints": "更新时间"}
+        ]
+      },
+      {
+        "name": "ShareLink",
+        "description": "分享链接实体",
+        "fields": [
+          {"name": "share_id", "type": "string", "constraints": "唯一标识"},
+          {"name": "content_id", "type": "string", "constraints": "关联到内容"},
+          {"name": "share_hash", "type": "string", "constraints": "分享链接hash"},
+          {"name": "user_id", "type": "string", "constraints": "创建用户"},
+          {"name": "is_one_time", "type": "boolean", "constraints": "是否一次性"},
+          {"name": "expire_at", "type": "datetime", "constraints": "过期时间（MVP以外）"},
+          {"name": "password", "type": "string", "constraints": "访问密码（MVP以外）"},
+          {"name": "is_revoked", "type": "boolean", "constraints": "是否已撤销"},
+          {"name": "created_at", "type": "datetime", "constraints": "创建时间"}
+        ]
+      }
+    ],
+    "open_questions": [
+      {
+        "question": "API Key管理细节（生成方式、过期时间、多Key支持、权限区分）",
+        "priority": "medium"
+      },
+      {
+        "question": "生命周期管理细节（自动过期时间、删除恢复、空间限制处理）",
+        "priority": "medium"
+      },
+      {
+        "question": "内容列表的分页大小和默认排序方式",
+        "priority": "low"
+      },
+      {
+        "question": "性能要求（响应时间、并发量）",
+        "priority": "medium"
+      }
+    ]
+  },
+  "architecture_design": {
+    "pattern": "Simplified Clean Architecture",
+    "rationale": "本地部署的单体应用，需要预留用户系统接口，要求良好的测试性",
+    "layers": [
+      {
+        "name": "domain",
+        "description": "领域层：实体、值对象、接口",
+        "dependencies": ["无依赖"],
+        "components": [
+          "entities: Content, ShareLink, User",
+          "value_objects: ContentHash, ApiKey, ContentType",
+          "interfaces: IContentRepository, IShareLinkRepository, IFileStorage"
+        ]
+      },
+      {
+        "name": "use_cases",
+        "description": "应用层：业务用例",
+        "dependencies": ["domain"],
+        "components": [
+          "content: UploadFile, SaveRichText, GetContentList, SearchContent, DeleteContent",
+          "share: CreateShareLink, GetShareByHash, RevokeShareLink"
+        ]
+      },
+      {
+        "name": "adapters",
+        "description": "适配层：具体实现",
+        "dependencies": ["domain", "use_cases"],
+        "components": [
+          "repositories: SqliteContentRepository, SqliteShareLinkRepository",
+          "storage: LocalFileStorage",
+          "controllers: ContentController, ShareController",
+          "middleware: AuthMiddleware"
+        ]
+      },
+      {
+        "name": "infrastructure",
+        "description": "基础设施层：配置、DI容器",
+        "dependencies": ["所有层"],
+        "components": [
+          "database: SQLite",
+          "config: 配置管理",
+          "di_container: 依赖注入容器"
+        ]
+      }
+    ],
+    "technology_stack": {
+      "backend": {
+        "language": "Python 3.11+",
+        "framework": "FastAPI",
+        "database": "SQLite (aiosqlite)",
+        "di": "dependency-injector",
+        "testing": "pytest + pytest-asyncio"
+      },
+      "deployment": {
+        "containerization": "Docker",
+        "management": "1panel",
+        "reverse_proxy": "Nginx"
+      }
+    },
+    "database_schema": {
+      "contents": {
+        "sql": "CREATE TABLE contents (content_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, title TEXT NOT NULL, content_hash TEXT NOT NULL UNIQUE, file_path TEXT, original_filename TEXT, file_size INTEGER DEFAULT 0, rich_text_content TEXT, metadata TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);",
+        "indexes": ["CREATE INDEX idx_contents_user_id ON contents(user_id);", "CREATE INDEX idx_contents_content_hash ON contents(content_hash);", "CREATE INDEX idx_contents_title ON contents(title);"]
+      },
+      "share_links": {
+        "sql": "CREATE TABLE share_links (share_id TEXT PRIMARY KEY, content_id TEXT NOT NULL, share_hash TEXT NOT NULL UNIQUE, user_id TEXT NOT NULL, is_one_time INTEGER DEFAULT 0, expire_at TEXT, password TEXT, is_revoked INTEGER DEFAULT 0, access_count INTEGER DEFAULT 0, created_at TEXT NOT NULL, FOREIGN KEY (content_id) REFERENCES contents(content_id));",
+        "indexes": ["CREATE INDEX idx_share_links_hash ON share_links(share_hash);", "CREATE INDEX idx_share_links_content_id ON share_links(content_id);"]
+      },
+      "users": {
+        "sql": "CREATE TABLE users (user_id TEXT PRIMARY KEY, api_key TEXT NOT NULL UNIQUE, username TEXT, created_at TEXT NOT NULL);",
+        "indexes": []
+      }
+    },
+    "api_endpoints": {
+      "content_api": [
+        {"method": "POST", "path": "/api/content", "auth": "必需", "description": "上传文件/保存富文本"},
+        {"method": "GET", "path": "/api/content", "auth": "必需", "description": "获取内容列表"},
+        {"method": "GET", "path": "/api/content/{id}", "auth": "必需", "description": "获取内容详情"},
+        {"method": "PUT", "path": "/api/content/{id}", "auth": "必需", "description": "更新内容"},
+        {"method": "DELETE", "path": "/api/content/{id}", "auth": "必需", "description": "删除内容"},
+        {"method": "GET", "path": "/api/content/search", "auth": "必需", "description": "搜索内容"}
+      ],
+      "share_api": [
+        {"method": "POST", "path": "/api/share", "auth": "必需", "description": "创建分享链接"},
+        {"method": "DELETE", "path": "/api/share/{id}", "auth": "必需", "description": "撤销分享链接"}
+      ],
+      "public_access": [
+        {"method": "GET", "path": "/share/{hash}", "auth": "可选", "description": "通过分享链接访问"},
+        {"method": "GET", "path": "/files/{hash}", "auth": "可选", "description": "直接访问文件（通过hash）"}
+      ]
+    }
+  },
+  "task_roadmap": {
+    "phases": [
+      {
+        "id": "phase_1",
+        "name": "基础设施搭建",
+        "duration": "1 week",
+        "tasks": [
+          {"id": "T1.1", "name": "初始化项目结构", "estimate": "0.5天"},
+          {"id": "T1.2", "name": "配置依赖注入容器", "estimate": "0.5天"},
+          {"id": "T1.3", "name": "设计并创建数据库schema", "estimate": "1天"},
+          {"id": "T1.4", "name": "实现数据库连接和初始化", "estimate": "1天"},
+          {"id": "T1.5", "name": "配置日志系统", "estimate": "0.5天"},
+          {"id": "T1.6", "name": "配置开发环境（Docker）", "estimate": "1天"}
+        ],
+        "milestone": "项目可运行，数据库可访问"
+      },
+      {
+        "id": "phase_2",
+        "name": "领域层实现",
+        "duration": "1 week",
+        "tasks": [
+          {"id": "T2.1", "name": "实现Content实体", "estimate": "1天"},
+          {"id": "T2.2", "name": "实现ShareLink实体", "estimate": "1天"},
+          {"id": "T2.3", "name": "实现User实体（预留接口）", "estimate": "0.5天"},
+          {"id": "T2.4", "name": "实现ContentHash值对象", "estimate": "0.5天"},
+          {"id": "T2.5", "name": "实现ApiKey值对象", "estimate": "0.5天"},
+          {"id": "T2.6", "name": "实现ContentType枚举", "estimate": "0.5天"},
+          {"id": "T2.7", "name": "编写领域层单元测试", "estimate": "1天"}
+        ],
+        "milestone": "领域层实现完成，测试通过"
+      },
+      {
+        "id": "phase_3",
+        "name": "仓储接口与适配器",
+        "duration": "1 week",
+        "tasks": [
+          {"id": "T3.1", "name": "定义IContentRepository接口", "estimate": "0.5天"},
+          {"id": "T3.2", "name": "定义IShareLinkRepository接口", "estimate": "0.5天"},
+          {"id": "T3.3", "name": "定义IUserRepository接口", "estimate": "0.5天"},
+          {"id": "T3.4", "name": "定义IFileStorage接口", "estimate": "0.5天"},
+          {"id": "T3.5", "name": "实现SqliteContentRepository", "estimate": "2天"},
+          {"id": "T3.6", "name": "实现SqliteShareLinkRepository", "estimate": "1.5天"},
+          {"id": "T3.7", "name": "实现SqliteUserRepository", "estimate": "1天"},
+          {"id": "T3.8", "name": "实现LocalFileStorage", "estimate": "1.5天"},
+          {"id": "T3.9", "name": "编写仓储层集成测试", "estimate": "1天"}
+        ],
+        "milestone": "数据访问层可用，测试通过"
+      },
+      {
+        "id": "phase_4",
+        "name": "用例层实现",
+        "duration": "2 weeks",
+        "tasks": [
+          {"id": "T4.1", "name": "实现UploadFile用例", "estimate": "1天"},
+          {"id": "T4.2", "name": "实现SaveRichText用例", "estimate": "1天"},
+          {"id": "T4.3", "name": "实现GetContentList用例", "estimate": "1天"},
+          {"id": "T4.4", "name": "实现GetContentDetail用例", "estimate": "0.5天"},
+          {"id": "T4.5", "name": "实现SearchContent用例", "estimate": "1天"},
+          {"id": "T4.6", "name": "实现DeleteContent用例", "estimate": "1天"},
+          {"id": "T4.7", "name": "实现UpdateContent用例", "estimate": "1天"},
+          {"id": "T4.8", "name": "实现CreateShareLink用例", "estimate": "1天"},
+          {"id": "T4.9", "name": "实现GetShareByHash用例", "estimate": "0.5天"},
+          {"id": "T4.10", "name": "实现RevokeShareLink用例", "estimate": "0.5天"},
+          {"id": "T4.11", "name": "编写用例层单元测试", "estimate": "2天"}
+        ],
+        "milestone": "业务用例实现完成，测试通过"
+      },
+      {
+        "id": "phase_5",
+        "name": "HTTP API实现",
+        "duration": "1 week",
+        "tasks": [
+          {"id": "T5.1", "name": "实现API Key认证中间件", "estimate": "1天"},
+          {"id": "T5.2", "name": "实现ContentController", "estimate": "2天"},
+          {"id": "T5.3", "name": "实现ShareController", "estimate": "1天"},
+          {"id": "T5.4", "name": "实现静态文件路由", "estimate": "1天"},
+          {"id": "T5.5", "name": "实现分享链接访问路由", "estimate": "1天"},
+          {"id": "T5.6", "name": "实现错误处理和响应格式化", "estimate": "1天"},
+          {"id": "T5.7", "name": "编写API集成测试", "estimate": "2天"}
+        ],
+        "milestone": "API可访问，集成测试通过"
+      },
+      {
+        "id": "phase_6",
+        "name": "前端界面",
+        "duration": "1 week",
+        "tasks": [
+          {"id": "T6.1", "name": "设计页面布局和交互流程", "estimate": "1天"},
+          {"id": "T6.2", "name": "实现内容列表页面", "estimate": "1.5天"},
+          {"id": "T6.3", "name": "实现内容详情页面", "estimate": "1.5天"},
+          {"id": "T6.4", "name": "实现搜索功能页面", "estimate": "1天"},
+          {"id": "T6.5", "name": "实现分享链接页面", "estimate": "1天"},
+          {"id": "T6.6", "name": "实现响应式设计", "estimate": "1天"}
+        ],
+        "milestone": "Web界面可用"
+      },
+      {
+        "id": "phase_7",
+        "name": "测试与优化",
+        "duration": "1 week",
+        "tasks": [
+          {"id": "T7.1", "name": "完善单元测试覆盖率", "estimate": "2天"},
+          {"id": "T7.2", "name": "编写端到端测试", "estimate": "2天"},
+          {"id": "T7.3", "name": "性能测试和优化", "estimate": "1天"},
+          {"id": "T7.4", "name": "安全审计和加固", "estimate": "1天"},
+          {"id": "T7.5", "name": "代码重构和优化", "estimate": "1天"}
+        ],
+        "milestone": "测试覆盖率达标，性能可接受"
+      },
+      {
+        "id": "phase_8",
+        "name": "部署准备",
+        "duration": "1 week",
+        "tasks": [
+          {"id": "T8.1", "name": "编写部署文档", "estimate": "1天"},
+          {"id": "T8.2", "name": "配置Docker镜像", "estimate": "1天"},
+          {"id": "T8.3", "name": "配置1panel部署脚本", "estimate": "1天"},
+          {"id": "T8.4", "name": "编写API文档", "estimate": "1天"},
+          {"id": "T8.5", "name": "编写用户手册", "estimate": "1天"}
+        ],
+        "milestone": "可部署到生产环境"
+      }
+    ],
+    "total_duration": "9 weeks",
+    "architecture_stories": [
+      {
+        "id": "story_1",
+        "title": "搭建项目基础设施",
+        "estimate": "5 story points",
+        "description": "搭建项目基础结构和数据库，为后续开发提供稳定的基础"
+      },
+      {
+        "id": "story_2",
+        "title": "实现内容管理核心领域",
+        "estimate": "8 story points",
+        "description": "实现Content实体和相关值对象，捕捉内容管理的核心业务规则"
+      },
+      {
+        "id": "story_3",
+        "title": "实现数据访问层",
+        "estimate": "13 story points",
+        "description": "实现SQLite仓储和本地文件存储，将领域逻辑与数据持久化解耦"
+      },
+      {
+        "id": "story_4",
+        "title": "实现内容管理用例",
+        "estimate": "13 story points",
+        "description": "实现内容管理的所有用例，协调领域对象完成业务操作"
+      },
+      {
+        "id": "story_5",
+        "title": "实现分享链接功能",
+        "estimate": "8 story points",
+        "description": "实现分享链接的创建和访问，用户可以安全地分享内容给其他人"
+      },
+      {
+        "id": "story_6",
+        "title": "实现HTTP API层",
+        "estimate": "13 story points",
+        "description": "实现REST API和认证中间件，客户端可以通过HTTP调用系统功能"
+      }
+    ]
+  },
+  "test_contract": {
+    "framework": "Gherkin (BDD)",
+    "test_artifact": "20-planning/Gherkin测试用例.md",
+    "coverage_requirements": {
+      "unit_tests": "用例层测试覆盖率 ≥ 90%",
+      "adapter_tests": "适配器层测试覆盖率 ≥ 80%",
+      "api_tests": "API端点集成测试 100%",
+      "e2e_tests": "关键业务流程端到端测试 ≥ 80%"
+    },
+    "key_features": [
+      "Feature 1: 文件上传与存储",
+      "Feature 2: 富文本保存与查看",
+      "Feature 3: 内容列表展示",
+      "Feature 4: 内容搜索",
+      "Feature 5: 内容详情查看",
+      "Feature 6: 内容管理（CRUD）",
+      "Feature 7: 分享链接生成",
+      "Feature 8: API Key认证",
+      "Feature 9: URL Hash处理",
+      "Feature 10: 错误处理"
+    ],
+    "execution_order": [
+      "第一批：核心功能（API Key认证、文件上传、富文本、分享链接）",
+      "第二批：列表和搜索",
+      "第三批：CRUD和错误处理",
+      "第四批：安全和性能"
+    ]
+  },
+  "mvp_success_criteria": [
+    "用户可以通过API上传文件",
+    "用户可以通过API保存富文本",
+    "用户可以查看自己的内容列表",
+    "用户可以搜索内容",
+    "用户可以生成分享链接",
+    "外部用户可以通过分享链接访问内容",
+    "API Key认证正常工作",
+    "URL使用hash而非文件名"
+  ],
+  "quality_standards": [
+    "单元测试覆盖率 ≥ 85%",
+    "集成测试覆盖所有API端点",
+    "代码审查通过",
+    "无已知安全漏洞",
+    "响应时间 < 500ms (P95)"
+  ],
+  "next_steps": [
+    "确认需求：与用户确认《业务规则备忘录》",
+    "确认架构：与团队确认架构设计方案",
+    "开始Phase 1：搭建项目基础设施",
+    "建立CI/CD：配置自动化测试和部署"
+  ],
+  "glossary": {
+    "书童四九": "运行在本地MiniPC上的智能体，负责调用云端大模型API并生成文件",
+    "文件管理服务": "本系统，负责文件存储和HTTP访问的中转层",
+    "静态网页服务": "读取工作目录并提供HTTP访问的服务",
+    "工作目录": "文件管理服务存储上传文件的本地物理目录",
+    "分享链接": "包含hash的URL，允许外部用户访问特定内容",
+    "API Key": "用于标识用户身份的密钥，在API调用时传递",
+    "Clean Architecture": "一种分层架构模式，业务逻辑独立于框架和基础设施",
+    "Bounded Context": "DDD中的概念，定义了特定模型的适用边界",
+    "Aggregate Root": "DDD中的概念，聚合根是聚合的唯一入口点"
+  }
+}
