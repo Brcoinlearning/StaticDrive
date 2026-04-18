@@ -3,3 +3,8 @@
 # Local tool state
 .claude/
 
+# Local runtime state
+.env
+pocketbase/bin/pocketbase
+pocketbase/data/
+pocketbase/public/
