@@ -2,6 +2,7 @@
 
 # Local tool state
 .claude/
+.worktrees/
 
 # Local runtime state
 .env
