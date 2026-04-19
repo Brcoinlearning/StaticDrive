@@ -7,7 +7,7 @@
 所有终端都先进入：
 
 ```bash
-cd /Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base
+cd /Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理
 ```
 
 ## 2. 终端分工
@@ -98,8 +98,8 @@ curl http://127.0.0.1:8787/api/health
 在浏览器里进入 PocketBase 后台，确认：
 
 1. `_admins` 中你可以正常登录。
-2. `users_api` 集合里存在：`T1 Verify User`。
-3. 它的 `api_key` 为：`t1_verify_api_key_0001`。
+2. `users_api` 集合里存在 owner 测试用户。
+3. 你手工联调时使用的 `api_key` 明确可见。
 
 ## 5. 功能联调命令
 
@@ -110,29 +110,23 @@ curl http://127.0.0.1:8787/api/health
 ```bash
 curl -X POST http://127.0.0.1:8787/api/write/html \
   -H 'content-type: application/json' \
-  -H 'x-shutong49-api-key: t1_verify_api_key_0001' \
+  -H 'x-shutong49-api-key: <your-api-key>' \
   -d '{"title":"书童四九 HTML 样例","htmlContent":"<article><h1>静态网页服务演示</h1><p>这是手工联调 HTML 样例。</p></article>"}'
 ```
-
-预期成功时会返回：
-
-- `contentId`
-- `contentHash`
-- `accessUrl`
 
 ### 5.2 写入文件
 
 ```bash
 curl -X POST http://127.0.0.1:8787/api/write/file \
   -H 'content-type: application/json' \
-  -H 'x-shutong49-api-key: t1_verify_api_key_0001' \
+  -H 'x-shutong49-api-key: <your-api-key>' \
   -d '{"title":"架构说明文件","filename":"架构说明.txt","mimeType":"text/plain","contentBase64":"UG9ja2V0QmFzZSArIOS4muWKoeWjsyArIOWvueWkluW/hemXrumXqOWxggo="}'
 ```
 
 ### 5.3 查看 owner 列表
 
 ```bash
-curl -H 'x-shutong49-api-key: t1_verify_api_key_0001' \
+curl -H 'x-shutong49-api-key: <your-api-key>' \
   http://127.0.0.1:8787/api/query/list
 ```
 
@@ -141,7 +135,7 @@ curl -H 'x-shutong49-api-key: t1_verify_api_key_0001' \
 ```bash
 curl -X POST http://127.0.0.1:8787/api/write/share \
   -H 'content-type: application/json' \
-  -H 'x-shutong49-api-key: t1_verify_api_key_0001' \
+  -H 'x-shutong49-api-key: <your-api-key>' \
   -d '{"contentId":"<contentId>"}'
 ```
 
@@ -157,7 +151,7 @@ curl -X POST http://127.0.0.1:8787/api/write/share \
 ```bash
 curl -X POST http://127.0.0.1:8787/api/write/share/revoke \
   -H 'content-type: application/json' \
-  -H 'x-shutong49-api-key: t1_verify_api_key_0001' \
+  -H 'x-shutong49-api-key: <your-api-key>' \
   -d '{"contentId":"<contentId>"}'
 ```
 
@@ -166,79 +160,25 @@ curl -X POST http://127.0.0.1:8787/api/write/share/revoke \
 ```bash
 curl -X POST http://127.0.0.1:8787/api/write/delete \
   -H 'content-type: application/json' \
-  -H 'x-shutong49-api-key: t1_verify_api_key_0001' \
+  -H 'x-shutong49-api-key: <your-api-key>' \
   -d '{"contentId":"<contentId>"}'
 ```
 
 ## 6. 当前 400 错误的专项排查
 
-如果你执行 `POST /api/write/html` 仍返回：
+如果你执行 `POST /api/write/html` 返回：
 
 ```json
 {"error":"internal_error","message":"Content write failed.","details":"PocketBase request failed: 400"}
 ```
 
-先不要继续测功能，先按下面顺序排查。
+先按下面顺序排查：
 
-### 6.1 先检查 `.env` 中管理员密码是否混入全角字符
+1. `.env` 中 `PB_ADMIN_EMAIL` / `PB_ADMIN_PASSWORD` 是否正确
+2. PocketBase 中 `contents.is_shared` 与 `share_links.is_revoked` 是否误设为 `required=true`
+3. 修改 `.env` 后是否已重启业务壳服务
 
-当前最值得怀疑的是：密码最后的感叹号是否是中文全角 `！`，而不是英文半角 `!`。
+## 7. 相关文档
 
-正确示例：
-
-```env
-PB_ADMIN_PASSWORD=Huhangbin2004!
-```
-
-错误示例：
-
-```env
-PB_ADMIN_PASSWORD=Huhangbin2004！
-```
-
-这两者看起来很像，但实际上是两个不同字符。若这里写成全角，业务壳去调用 PocketBase 管理接口时就会登录失败，随后所有受保护写入都会报 `PocketBase request failed: 400`。
-
-### 6.2 改完 `.env` 后，必须重启终端 2 的业务壳
-
-```bash
-Ctrl + C
-./scripts/start_service.sh
-```
-
-### 6.3 再重新执行 HTML 写入命令
-
-如果仍失败，再继续看业务壳终端日志，而不是只看 curl 输出。
-
-### 6.4 再检查 PocketBase 布尔字段是否被配置为 required
-
-必须确认以下两个字段为 `required=false`：
-
-- `contents.is_shared`
-- `share_links.is_revoked`
-
-真实联调已验证：若这里为 `required=true`，PocketBase 会把 `false` 判成缺失值，并返回 `400 validation_required`。
-
-## 7. 常见关闭命令
-
-检查 8090：
-
-```bash
-lsof -iTCP:8090 -sTCP:LISTEN
-```
-
-检查 8787：
-
-```bash
-lsof -iTCP:8787 -sTCP:LISTEN
-```
-
-结束进程：
-
-```bash
-kill 实际PID
-```
-
-## 8. 相关文档
-
-- [manual-check-guide.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/docs/manual-check-guide.md)
-- [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/docs/mvp-sample-data.md)
+- [manual-check-guide.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/manual-check-guide.md)
+- [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-sample-data.md)

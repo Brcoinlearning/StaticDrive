@@ -185,7 +185,7 @@ node --test
 
 完整样例见：
 
-- [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/docs/mvp-sample-data.md)
+- [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-sample-data.md)
 
 ## 8. 最短手工验证路径
 
@@ -326,6 +326,6 @@ curl http://127.0.0.1:8090/api/health
 
 ## 10. 相关文档
 
-- [README.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/README.md)
-- [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/docs/mvp-sample-data.md)
-- [mvp-integration-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/docs/mvp-integration-verification.md)
+- [README.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/README.md)
+- [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-sample-data.md)
+- [mvp-integration-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-integration-verification.md)

@@ -75,7 +75,7 @@
 1. 启动 PocketBase。
 2. 在 PocketBase 后台创建管理员账号与 `users_api` 样例用户。
 3. 启动业务壳。
-4. 使用 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/docs/mvp-sample-data.md) 中的请求依次写入 HTML 和文件。
+4. 使用 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-sample-data.md) 中的请求依次写入 HTML 和文件。
 5. 创建分享链接后访问 `/web/public/content/:contentHash` 或 `/web/public/share/:shareHash`。
 6. 访问 `/web/list`、`/web/search`、`/web/detail/:contentId` 验证 owner 页面。
 7. 执行撤销分享与删除，确认 public 状态立即变化。

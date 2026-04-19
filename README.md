@@ -9,14 +9,18 @@
 - 分享链接创建、public hash 访问、网页层渲染
 - 删除内容与撤销分享
 
-## 目录结构
+## 文档结构
+
+- `docs/01-before-execution/`：执行前正式产物，如需求、技术选型、架构、任务拆解、测试契约
+- `docs/02-mvp-execution/`：MVP 执行期产物，如样例数据、联调手册、集成验证、完成记录
+- `docs/03-next-phase/`：MVP 之后的规划与下一阶段工作清单
+
+## 代码结构
 
 - `pb_migrations/`：PocketBase 集合迁移定义
 - `scripts/`：PocketBase 安装、启动与阶段性验证脚本
 - `src/`：业务壳服务与网页层源码
 - `tests/`：Node 原生测试
-- `docs/mvp-sample-data.md`：最小样例数据
-- `docs/mvp-integration-verification.md`：MVP 主链路验证记录
 
 ## 运行关系
 
@@ -68,7 +72,7 @@
 
 1. 创建管理员账号
 2. 确认迁移已初始化 `users_api`、`contents`、`share_links`
-3. 在 `users_api` 中插入一条 API Key 样例记录，参考 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/docs/mvp-sample-data.md)
+3. 在 `users_api` 中插入一条 API Key 样例记录，参考 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-sample-data.md)
 
 ### 3. 启动业务壳服务与网页层
 
@@ -118,7 +122,7 @@ node --test tests/auth.test.js
 7. 分享下载文件
 8. 删除内容与撤销分享
 
-对应的自动化证据见 [mvp-integration-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/docs/mvp-integration-verification.md)。
+对应的自动化证据见 [mvp-integration-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-integration-verification.md)。
 
 ## 常用接口
 
@@ -151,7 +155,7 @@ public 接口：
 
 ## 手工演示建议
 
-1. 先按 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.worktrees/t1-pocketbase-base/docs/mvp-sample-data.md) 写入一条 HTML 内容和一条文件内容。
+1. 先按 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-sample-data.md) 写入一条 HTML 内容和一条文件内容。
 2. 创建分享链接。
 3. 打开 `/web/list`、`/web/search`、`/web/detail/:contentId`。
 4. 打开 `/web/public/content/:contentHash` 或 `/web/public/share/:shareHash`。
