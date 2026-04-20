@@ -6,14 +6,19 @@
 
 - API Key 鉴权后的 HTML 写入与文件写入
 - owner-scoped 的列表、搜索、详情查询
+- 面向公开访客的公开列表、公开搜索、公开详情访问
 - 分享链接创建、public hash 访问、网页层渲染
 - 删除内容与撤销分享
+- 文件通过 public/content 与 public/share 的真实二进制下载
 
 ## 文档结构
 
-- `docs/01-before-execution/`：执行前正式产物，如需求、技术选型、架构、任务拆解、测试契约
-- `docs/02-mvp-execution/`：MVP 执行期产物，如样例数据、联调手册、集成验证、完成记录
-- `docs/03-next-phase/`：MVP 之后的规划与下一阶段工作清单
+- `docs/P1-MVP/01-before-execution/`：P1 开始前的正式产物，如需求、技术选型、架构、任务拆解、测试契约
+- `docs/P1-MVP/02-after-execution/`：P1 执行后的联调、验收、演示与结果文档
+- `docs/P2-Stabilization/01-before-execution/`：P2 稳定化阶段开始前的范围、架构、任务与路线图文档
+- `docs/P2-Stabilization/02-after-execution/`：P2 执行后的验证、诊断、冷启动与收口文档
+- `docs/P3-Owner-Frontend/01-before-execution/`：P3 owner 产品化前端的准备文档
+- `docs/_reference/`：补充说明与参考材料
 
 ## 代码结构
 
@@ -65,6 +70,7 @@
 ### 2. 启动 PocketBase
 
 ```bash
+bash ./scripts/preflight.sh pocketbase
 ./scripts/start_pocketbase.sh
 ```
 
@@ -72,11 +78,12 @@
 
 1. 创建管理员账号
 2. 确认迁移已初始化 `users_api`、`contents`、`share_links`
-3. 在 `users_api` 中插入一条 API Key 样例记录，参考 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-sample-data.md)
+3. 在 `users_api` 中插入一条 API Key 样例记录，参考 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/02-after-execution/mvp-sample-data.md)
 
 ### 3. 启动业务壳服务与网页层
 
 ```bash
+bash ./scripts/preflight.sh service
 npm install
 npm start
 ```
@@ -86,6 +93,15 @@ npm start
 ```bash
 ./scripts/start_service.sh
 ```
+
+当前预检会在真正启动前检查：
+
+- `.env` 是否存在
+- `PB_ADMIN_EMAIL` / `PB_ADMIN_PASSWORD` 是否已填写
+- PocketBase 二进制是否已安装
+- `PB_PORT` / `SERVICE_PORT` 是否被占用
+- PocketBase `/api/health` 是否可达
+- 数据目录、公开目录、工作目录是否可创建
 
 服务默认监听：
 
@@ -100,29 +116,44 @@ npm start
 node --test
 ```
 
-当前 fresh 验证结果：`41/41` 通过。
+当前 fresh 验证结果：`51/51` 通过。
 
 如果只想跑关键子集：
 
 ```bash
 node --test tests/content.test.js
 node --test tests/auth.test.js
+node --test tests/health.test.js
 ```
 
-## 八条主流程
+如果要先做一次近空环境 dry-run，再进入人工冷启动步骤，可执行：
 
-当前 MVP 至少覆盖以下 8 条主流程：
+```bash
+bash ./scripts/verify_coldstart_dry_run.sh
+```
+
+## 十条主流程
+
+当前 MVP 至少覆盖以下 10 条主流程：
 
 1. HTML 写入
 2. 文件写入
 3. owner 列表
 4. owner 搜索
 5. owner 详情
-6. 分享访问 HTML
-7. 分享下载文件
-8. 删除内容与撤销分享
+6. public 列表
+7. public 搜索
+8. 分享访问 HTML
+9. 分享下载文件
+10. 删除内容与撤销分享
 
-对应的自动化证据见 [mvp-integration-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-integration-verification.md)。
+对应的自动化证据见 [mvp-integration-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/02-after-execution/mvp-integration-verification.md)。
+
+Phase 2 的稳定化证据见：
+
+- [p2-t2-startup-preflight-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P2-Stabilization/02-after-execution/p2-t2-startup-preflight-verification.md)
+- [p2-t5-runtime-diagnostics-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P2-Stabilization/02-after-execution/p2-t5-runtime-diagnostics-verification.md)
+- [p2-t6-cold-start-reproducibility-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P2-Stabilization/02-after-execution/p2-t6-cold-start-reproducibility-verification.md)
 
 ## 常用接口
 
@@ -150,16 +181,19 @@ public 接口：
 - `GET /web/list`
 - `GET /web/search`
 - `GET /web/detail/:contentId`
+- `GET /web/public/list`
+- `GET /web/public/search`
 - `GET /web/public/content/:contentHash`
 - `GET /web/public/share/:shareHash`
 
 ## 手工演示建议
 
-1. 先按 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/02-mvp-execution/mvp-sample-data.md) 写入一条 HTML 内容和一条文件内容。
+1. 先按 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/02-after-execution/mvp-sample-data.md) 写入一条 HTML 内容和一条文件内容。
 2. 创建分享链接。
 3. 打开 `/web/list`、`/web/search`、`/web/detail/:contentId`。
-4. 打开 `/web/public/content/:contentHash` 或 `/web/public/share/:shareHash`。
-5. 执行 `/api/write/share/revoke` 和 `/api/write/delete`，观察 public 状态变化。
+4. 打开 `/web/public/list`、`/web/public/search?q=关键词`，再进入公开详情页。
+5. 验证 `/api/public/content/:contentHash` 或 `/api/public/share/:shareHash` 返回真实文件下载而不是 JSON。
+6. 执行 `/api/write/share/revoke` 和 `/api/write/delete`，观察 public 状态变化。
 
 ## MiniPC 部署建议
 
@@ -178,8 +212,9 @@ public 接口：
 
 ## 当前已知取舍
 
-- public 文件下载当前通过 JSON + base64 传输，适合 MVP 验证，不是最终大文件方案
 - owner 网页层当前依赖 API Key 头，适合内测和联调，不是最终浏览器会话方案
+- 启动脚本当前提供的是本地预检与失败提示，不是完整守护进程管理方案
+- 冷启动当前已具备仓库内 dry-run 验证，但仍依赖联网下载 PocketBase 与 PocketBase 后台人工初始化
 
 ## PocketBase 注意事项
 
