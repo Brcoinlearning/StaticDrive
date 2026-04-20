@@ -1,16 +1,30 @@
+import { createAppError } from '../errors.js';
+
 function escapeFilterValue(value) {
   return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-async function parseResponse(response) {
+async function parseResponse(response, operation) {
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    const error = new Error(`PocketBase request failed: ${response.status}`);
-    error.status = response.status;
-    error.payload = data;
-    throw error;
+    throw createAppError({
+      message: `PocketBase request failed during ${operation}.`,
+      statusCode: 502,
+      code: 'pocketbase_request_failed',
+      details: `PocketBase request failed: ${response.status}`,
+      diagnostic: {
+        operation,
+        pocketbaseStatus: response.status,
+        pocketbaseMessage: data?.message,
+        pocketbaseData: data?.data ?? null
+      },
+      cause: Object.assign(new Error(`PocketBase request failed: ${response.status}`), {
+        status: response.status,
+        payload: data
+      })
+    });
   }
 
   return data;
@@ -27,7 +41,15 @@ export class PocketBaseClient {
 
   async authenticateAdmin() {
     if (!this.adminEmail || !this.adminPassword) {
-      throw new Error('PocketBase admin credentials are required for protected collection access.');
+      throw createAppError({
+        message: 'PocketBase admin credentials are required for protected collection access.',
+        statusCode: 500,
+        code: 'pocketbase_admin_credentials_missing',
+        details: 'PB_ADMIN_EMAIL and PB_ADMIN_PASSWORD must be configured before protected PocketBase access.',
+        diagnostic: {
+          operation: 'authenticate_admin'
+        }
+      });
     }
 
     const response = await this.fetchImpl(`${this.baseUrl}/api/admins/auth-with-password`, {
@@ -40,7 +62,7 @@ export class PocketBaseClient {
         password: this.adminPassword
       })
     });
-    const payload = await parseResponse(response);
+    const payload = await parseResponse(response, 'authenticate_admin');
     this.adminToken = payload.token;
     return this.adminToken;
   }
@@ -55,7 +77,7 @@ export class PocketBaseClient {
 
   async healthCheck() {
     const response = await this.fetchImpl(`${this.baseUrl}/api/health`);
-    return parseResponse(response);
+    return parseResponse(response, 'health_check');
   }
 
   async findUserByApiKey(apiKey) {
@@ -68,7 +90,7 @@ export class PocketBaseClient {
         authorization: adminToken
       }
     });
-    const payload = await parseResponse(response);
+    const payload = await parseResponse(response, 'find_user_by_api_key');
     return payload.items?.[0] ?? null;
   }
 
@@ -83,7 +105,7 @@ export class PocketBaseClient {
       body: JSON.stringify(record)
     });
 
-    return parseResponse(response);
+    return parseResponse(response, 'create_content');
   }
 
   async listContents({ ownerUserId, page = 1, perPage = 20, search = '' }) {
@@ -104,7 +126,28 @@ export class PocketBaseClient {
       }
     });
 
-    return parseResponse(response);
+    return parseResponse(response, 'list_contents');
+  }
+
+  async listPublicContents({ page = 1, perPage = 20, search = '' }) {
+    const adminToken = await this.getAdminToken();
+    const filterParts = ['is_shared = true'];
+
+    if (search) {
+      const escapedSearch = escapeFilterValue(search);
+      filterParts.push(`(title ~ "${escapedSearch}" || original_filename ~ "${escapedSearch}")`);
+    }
+
+    const filter = encodeURIComponent(filterParts.join(' && '));
+    const url = `${this.baseUrl}/api/collections/contents/records?page=${page}&perPage=${perPage}&sort=-created&filter=${filter}`;
+    const response = await this.fetchImpl(url, {
+      headers: {
+        'content-type': 'application/json',
+        authorization: adminToken
+      }
+    });
+
+    return parseResponse(response, 'list_public_contents');
   }
 
   async getContentById(contentId) {
@@ -116,7 +159,7 @@ export class PocketBaseClient {
       }
     });
 
-    return parseResponse(response);
+    return parseResponse(response, 'get_content_by_id');
   }
 
   async getContentByHash(contentHash) {
@@ -129,7 +172,7 @@ export class PocketBaseClient {
         authorization: adminToken
       }
     });
-    const payload = await parseResponse(response);
+    const payload = await parseResponse(response, 'get_content_by_hash');
     return payload.items?.[0] ?? null;
   }
 
@@ -144,7 +187,7 @@ export class PocketBaseClient {
       body: JSON.stringify(record)
     });
 
-    return parseResponse(response);
+    return parseResponse(response, 'update_content');
   }
 
   async findShareLinkByContentId(contentId) {
@@ -157,7 +200,7 @@ export class PocketBaseClient {
         authorization: adminToken
       }
     });
-    const payload = await parseResponse(response);
+    const payload = await parseResponse(response, 'find_share_link_by_content_id');
     return payload.items?.[0] ?? null;
   }
 
@@ -176,7 +219,7 @@ export class PocketBaseClient {
         authorization: adminToken
       }
     });
-    const payload = await parseResponse(response);
+    const payload = await parseResponse(response, 'list_share_links_by_content_id');
     return payload.items ?? [];
   }
 
@@ -190,7 +233,7 @@ export class PocketBaseClient {
         authorization: adminToken
       }
     });
-    const payload = await parseResponse(response);
+    const payload = await parseResponse(response, 'find_share_link_by_hash');
     return payload.items?.[0] ?? null;
   }
 
@@ -205,7 +248,7 @@ export class PocketBaseClient {
       body: JSON.stringify(record)
     });
 
-    return parseResponse(response);
+    return parseResponse(response, 'create_share_link');
   }
 
   async updateShareLink(shareLinkId, record) {
@@ -219,7 +262,7 @@ export class PocketBaseClient {
       body: JSON.stringify(record)
     });
 
-    return parseResponse(response);
+    return parseResponse(response, 'update_share_link');
   }
 
   async deleteContent(contentId) {
@@ -232,6 +275,6 @@ export class PocketBaseClient {
       }
     });
 
-    return parseResponse(response);
+    return parseResponse(response, 'delete_content');
   }
 }

@@ -1,4 +1,5 @@
 import { json } from '../http/json.js';
+import { getErrorDetails, getErrorDiagnostic } from '../errors.js';
 
 export function createApiKeyAuth({ apiKeyHeader, pocketbaseClient }) {
   return async function apiKeyAuth(request, response) {
@@ -35,7 +36,8 @@ export function createApiKeyAuth({ apiKeyHeader, pocketbaseClient }) {
       json(response, 502, {
         error: 'pocketbase_unavailable',
         message: 'PocketBase lookup failed.',
-        details: error.message
+        details: getErrorDetails(error),
+        ...(getErrorDiagnostic(error) ? { diagnostic: getErrorDiagnostic(error) } : {})
       });
       return null;
     }

@@ -48,6 +48,78 @@ test('apiKeyAuth rejects missing header', async () => {
   assert.equal(response.body.error, 'missing_api_key');
 });
 
+test('apiKeyAuth returns diagnostic details when PocketBase lookup fails', async () => {
+  const auth = createApiKeyAuth({
+    apiKeyHeader: 'x-shutong49-api-key',
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        const error = new Error('PocketBase request failed during find_user_by_api_key.');
+        error.statusCode = 502;
+        error.code = 'pocketbase_request_failed';
+        error.details = 'PocketBase request failed: 400';
+        error.diagnostic = {
+          operation: 'find_user_by_api_key',
+          pocketbaseStatus: 400,
+          pocketbaseMessage: 'validation failed'
+        };
+        throw error;
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  const context = await auth({ headers: { 'x-shutong49-api-key': 'bad-key' } }, response);
+
+  assert.equal(context, null);
+  assert.equal(response.statusCode, 502);
+  assert.equal(response.body.error, 'pocketbase_unavailable');
+  assert.equal(response.body.details, 'PocketBase request failed: 400');
+  assert.equal(response.body.diagnostic.operation, 'find_user_by_api_key');
+  assert.equal(response.body.diagnostic.pocketbaseStatus, 400);
+});
+
+test('PocketBaseClient raises structured diagnostic error on failed requests', async () => {
+  const client = new PocketBaseClient({
+    baseUrl: 'http://127.0.0.1:8090',
+    adminEmail: 'admin@example.com',
+    adminPassword: 'secret-pass',
+    async fetchImpl(url) {
+      if (url.endsWith('/api/admins/auth-with-password')) {
+        return new Response(JSON.stringify({ token: 'pb_admin_token' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        });
+      }
+
+      return new Response(JSON.stringify({
+        message: 'Something went wrong while processing your request.',
+        data: {
+          title: {
+            code: 'validation_required',
+            message: 'Missing required value.'
+          }
+        }
+      }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+  });
+
+  await assert.rejects(
+    () => client.createContent({ title: '' }),
+    (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.equal(error.code, 'pocketbase_request_failed');
+      assert.equal(error.details, 'PocketBase request failed: 400');
+      assert.equal(error.diagnostic.operation, 'create_content');
+      assert.equal(error.diagnostic.pocketbaseStatus, 400);
+      assert.equal(error.diagnostic.pocketbaseData.title.code, 'validation_required');
+      return true;
+    }
+  );
+});
+
 test('PocketBaseClient authenticates admin before querying users_api', async () => {
   const calls = [];
   const client = new PocketBaseClient({
