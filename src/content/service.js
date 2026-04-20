@@ -55,6 +55,22 @@ function buildContentSummary(config, record) {
   };
 }
 
+function buildPublicContentSummary(config, record) {
+  return {
+    contentId: record.id,
+    type: record.type,
+    title: record.title,
+    originalFilename: record.original_filename,
+    contentHash: record.content_hash,
+    accessUrl: buildAccessUrl(config, record.content_hash),
+    publicPageUrl: `/web/public/content/${encodeURIComponent(record.content_hash)}`,
+    mimeType: record.mime_type,
+    fileSize: record.file_size,
+    createdAt: record.created,
+    updatedAt: record.updated
+  };
+}
+
 function buildContentDetail(config, record) {
   return {
     ...buildContentSummary(config, record),
@@ -163,9 +179,9 @@ function buildPublicFilePayload(config, record, fileContent, access) {
     accessUrl: buildAccessUrl(config, record.content_hash),
     download: {
       filename: record.original_filename,
-      mimeType: record.mime_type,
-      contentBase64: fileContent.toString('base64')
-    }
+      mimeType: record.mime_type
+    },
+    fileContent
   };
 }
 
@@ -354,6 +370,44 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
     return buildContentDetail(config, record);
   }
 
+  async function listPublicContents({ page, perPage }) {
+    const normalizedPage = normalizePositiveInteger(page, 1);
+    const normalizedPerPage = normalizePositiveInteger(perPage, 20);
+    const payload = await pocketbaseClient.listPublicContents({
+      page: normalizedPage,
+      perPage: normalizedPerPage,
+      search: ''
+    });
+
+    return {
+      items: (payload.items ?? []).map((record) => buildPublicContentSummary(config, record)),
+      page: payload.page ?? normalizedPage,
+      perPage: payload.perPage ?? normalizedPerPage,
+      totalItems: payload.totalItems ?? 0,
+      totalPages: payload.totalPages ?? 0
+    };
+  }
+
+  async function searchPublicContents({ q, page, perPage }) {
+    const normalizedQuery = normalizeSearch(q);
+    const normalizedPage = normalizePositiveInteger(page, 1);
+    const normalizedPerPage = normalizePositiveInteger(perPage, 20);
+    const payload = await pocketbaseClient.listPublicContents({
+      page: normalizedPage,
+      perPage: normalizedPerPage,
+      search: normalizedQuery
+    });
+
+    return {
+      query: normalizedQuery,
+      items: (payload.items ?? []).map((record) => buildPublicContentSummary(config, record)),
+      page: payload.page ?? normalizedPage,
+      perPage: payload.perPage ?? normalizedPerPage,
+      totalItems: payload.totalItems ?? 0,
+      totalPages: payload.totalPages ?? 0
+    };
+  }
+
   async function revokeShareLink({ ownerUserId, contentId }) {
     const record = await ensureOwnedContent(ownerUserId, contentId);
     const activeShareLink = await pocketbaseClient.findShareLinkByContentId(record.id);
@@ -537,6 +591,8 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
     listContents,
     searchContents,
     getContentDetail,
+    listPublicContents,
+    searchPublicContents,
     createShareLink,
     revokeShareLink,
     deleteContent,

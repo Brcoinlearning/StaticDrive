@@ -161,6 +161,67 @@ test('write/html rejects missing title', async () => {
   assert.equal(response.body.error, 'bad_request');
 });
 
+test('write/html returns structured diagnostics and logs request context on downstream failure', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-write-html-diagnostic'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent() {
+        const error = new Error('PocketBase request failed during create_content.');
+        error.statusCode = 502;
+        error.code = 'pocketbase_request_failed';
+        error.details = 'PocketBase request failed: 400';
+        error.diagnostic = {
+          operation: 'create_content',
+          pocketbaseStatus: 400,
+          pocketbaseMessage: 'Something went wrong while processing your request.'
+        };
+        throw error;
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  const originalConsoleError = console.error;
+  const calls = [];
+  console.error = (message) => calls.push(message);
+
+  try {
+    await app(await createRequest({
+      method: 'POST',
+      url: '/api/write/html',
+      headers: {
+        host: '127.0.0.1:8787',
+        'x-shutong49-api-key': 'valid-key'
+      },
+      body: {
+        title: 'Broken HTML',
+        htmlContent: '<p>test</p>'
+      }
+    }), response);
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(response.statusCode, 502);
+  assert.equal(response.body.error, 'pocketbase_request_failed');
+  assert.equal(response.body.message, 'Content write failed.');
+  assert.equal(response.body.details, 'PocketBase request failed: 400');
+  assert.equal(response.body.diagnostic.operation, 'create_content');
+  assert.equal(calls.length, 1);
+
+  const log = JSON.parse(calls[0]);
+  assert.equal(log.event, 'request_error');
+  assert.equal(log.code, 'pocketbase_request_failed');
+  assert.equal(log.context.method, 'POST');
+  assert.equal(log.context.url, '/api/write/html');
+  assert.equal(log.diagnostic.operation, 'create_content');
+});
+
 test('write/file retries when content_hash conflicts', async () => {
   const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-file-conflict-'));
   let attempts = 0;
@@ -448,6 +509,75 @@ test('query/search returns empty result with valid paging shape when no hits', a
   });
 });
 
+test('public list returns only shared content summaries', async () => {
+  const contentService = createContentService({
+    config: createConfig('/tmp/shutong49-public-list'),
+    pocketbaseClient: {
+      async listPublicContents({ page, perPage, search }) {
+        assert.equal(page, 1);
+        assert.equal(perPage, 20);
+        assert.equal(search, '');
+        return {
+          page: 1,
+          perPage: 20,
+          totalItems: 1,
+          totalPages: 1,
+          items: [{
+            id: 'public_1',
+            type: 'rich_text',
+            title: '公开文章',
+            original_filename: '',
+            content_hash: 'publichash123456publichash123456',
+            mime_type: 'text/html',
+            file_size: 0,
+            is_shared: true,
+            created: '2026-04-19 11:00:00.000Z',
+            updated: '2026-04-19 11:00:00.000Z'
+          }]
+        };
+      }
+    }
+  });
+
+  const result = await contentService.listPublicContents({});
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].contentId, 'public_1');
+  assert.equal(result.items[0].publicPageUrl, '/web/public/content/publichash123456publichash123456');
+});
+
+test('public search returns shared matches with public detail urls', async () => {
+  const contentService = createContentService({
+    config: createConfig('/tmp/shutong49-public-search'),
+    pocketbaseClient: {
+      async listPublicContents({ search }) {
+        assert.equal(search, '公开');
+        return {
+          page: 1,
+          perPage: 20,
+          totalItems: 1,
+          totalPages: 1,
+          items: [{
+            id: 'public_2',
+            type: 'file',
+            title: '公开文件',
+            original_filename: 'public.txt',
+            content_hash: 'publicsearch123456publicsearch12',
+            mime_type: 'text/plain',
+            file_size: 12,
+            is_shared: true,
+            created: '2026-04-19 11:00:00.000Z',
+            updated: '2026-04-19 11:00:00.000Z'
+          }]
+        };
+      }
+    }
+  });
+
+  const result = await contentService.searchPublicContents({ q: '公开' });
+  assert.equal(result.query, '公开');
+  assert.equal(result.items[0].publicPageUrl, '/web/public/content/publicsearch123456publicsearch12');
+});
+
 test('query/detail returns owner-scoped content detail', async () => {
   const app = createApp(createConfig('/tmp/shutong49-query-detail'), {
     pocketbaseClient: {
@@ -695,6 +825,98 @@ test('web/list renders owner content list page', async () => {
   assert.match(response.rawBody, /\/web\/detail\/content_page_1/);
 });
 
+test('web public list renders shared content discovery page', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-public-list'), {
+    contentService: {
+      async listPublicContents() {
+        return {
+          items: [{
+            contentId: 'content_public_page_1',
+            type: 'rich_text',
+            title: '公开页面内容',
+            originalFilename: '',
+            contentHash: 'publicpagehash123456publicpage12',
+            publicPageUrl: '/web/public/content/publicpagehash123456publicpage12',
+            mimeType: 'text/html',
+            fileSize: 0
+          }],
+          page: 1,
+          perPage: 20,
+          totalItems: 1,
+          totalPages: 1
+        };
+      }
+    },
+    pocketbaseClient: {
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/public/list',
+    headers: {
+      host: '127.0.0.1:8787'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /公开内容列表/);
+  assert.match(response.rawBody, /公开页面内容/);
+  assert.match(response.rawBody, /\/web\/public\/content\/publicpagehash123456publicpage12/);
+  assert.match(response.rawBody, /action="\/web\/public\/search"/);
+});
+
+test('web public search renders only public discovery results', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-public-search'), {
+    contentService: {
+      async searchPublicContents({ q }) {
+        assert.equal(q, '公开');
+        return {
+          query: '公开',
+          items: [{
+            contentId: 'content_public_search_1',
+            type: 'file',
+            title: '公开搜索命中',
+            originalFilename: 'shared.txt',
+            contentHash: 'publicsearchhash123456public12',
+            publicPageUrl: '/web/public/content/publicsearchhash123456public12',
+            mimeType: 'text/plain',
+            fileSize: 12
+          }],
+          page: 1,
+          perPage: 20,
+          totalItems: 1,
+          totalPages: 1
+        };
+      }
+    },
+    pocketbaseClient: {
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/public/search?q=%E5%85%AC%E5%BC%80',
+    headers: {
+      host: '127.0.0.1:8787'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /公开搜索结果/);
+  assert.match(response.rawBody, /公开搜索命中/);
+  assert.match(response.rawBody, /shared.txt/);
+  assert.match(response.rawBody, /\/web\/public\/content\/publicsearchhash123456public12/);
+});
+
 test('web/detail renders rich text in sandboxed iframe', async () => {
   const app = createApp(createConfig('/tmp/shutong49-web-detail'), {
     pocketbaseClient: {
@@ -793,8 +1015,8 @@ test('web public share page renders downloadable file link', async () => {
 
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /公开文件/);
-  assert.match(response.rawBody, /download="demo.txt"/);
-  assert.match(response.rawBody, /data:text\/plain;base64,aGVsbG8gd2ViIGRs/);
+  assert.match(response.rawBody, /下载原始文件/);
+  assert.match(response.rawBody, /href="http:\/\/127.0.0.1:8787\/api\/public\/content\/filehash1234filehash1234filehash"/);
 });
 
 test('web public content page returns html error page for unshared content', async () => {
@@ -876,7 +1098,7 @@ test('public content hash blocks access when content is not shared', async () =>
   assert.equal(response.body.error, 'forbidden');
 });
 
-test('public share hash returns file download payload', async () => {
+test('public share hash returns binary file download response', async () => {
   const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-public-file-'));
   const absoluteFile = path.join(workspaceDir, 'content-files', 'ab', 'file.bin');
   fs.mkdirSync(path.dirname(absoluteFile), { recursive: true });
@@ -927,10 +1149,58 @@ test('public share hash returns file download payload', async () => {
   }), response);
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.body.type, 'file');
-  assert.equal(response.body.access, 'share_hash');
-  assert.equal(response.body.download.filename, '共享 文件.txt');
-  assert.equal(Buffer.from(response.body.download.contentBase64, 'base64').toString('utf8'), 'hello shared file');
+  assert.match(response.headers['content-type'], /^text\/plain/);
+  assert.equal(response.headers['content-length'], String(Buffer.byteLength('hello shared file')));
+  assert.match(response.headers['content-disposition'], /attachment; filename\*=UTF-8''/);
+  assert.equal(response.rawBody, 'hello shared file');
+});
+
+test('public content hash returns binary bytes identical to stored file', async () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-public-file-identical-'));
+  const originalBytes = Buffer.from([0x00, 0x01, 0x41, 0x42, 0xff, 0x10, 0x20, 0x7f]);
+  const absoluteFile = path.join(workspaceDir, 'content-files', 'cd', 'file.bin');
+  fs.mkdirSync(path.dirname(absoluteFile), { recursive: true });
+  fs.writeFileSync(absoluteFile, originalBytes);
+
+  const app = createApp(createConfig(workspaceDir), {
+    pocketbaseClient: {
+      async getContentByHash(contentHash) {
+        assert.equal(contentHash, 'binaryhash123456binaryhash123456');
+        return {
+          id: 'content_binary',
+          owner_user_id: 'user_123',
+          type: 'file',
+          title: 'Binary File',
+          original_filename: 'binary.bin',
+          content_hash: 'binaryhash123456binaryhash123456',
+          storage_path: path.join('cd', 'file.bin'),
+          mime_type: 'application/octet-stream',
+          file_size: originalBytes.byteLength,
+          html_content: '',
+          is_shared: true,
+          created: '2026-04-19 10:00:00.000Z',
+          updated: '2026-04-19 10:00:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/api/public/content/binaryhash123456binaryhash123456',
+    headers: {
+      host: '127.0.0.1:8787'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.headers['content-type'], /^application\/octet-stream/);
+  assert.equal(response.headers['content-length'], String(originalBytes.byteLength));
+  assert.deepEqual(response.rawBuffer, originalBytes);
 });
 
 test('public share hash returns gone when share is revoked', async () => {

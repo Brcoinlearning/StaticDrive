@@ -174,6 +174,20 @@ function renderItemCard(item) {
   </article>`;
 }
 
+function renderPublicItemCard(item) {
+  const fileName = item.originalFilename ? `<p>文件名：${escapeHtml(item.originalFilename)}</p>` : '';
+  return `<article class="card">
+    <div class="badge">${escapeHtml(item.type === 'rich_text' ? '公开富文本' : '公开文件')}</div>
+    <h2><a href="${escapeHtml(item.publicPageUrl)}">${escapeHtml(item.title || item.originalFilename || '未命名内容')}</a></h2>
+    ${fileName}
+    <div class="meta">
+      <span>Hash: ${escapeHtml(item.contentHash)}</span>
+      <span>${escapeHtml(item.mimeType || '-')}</span>
+      <span>${escapeHtml(item.fileSize || 0)} bytes</span>
+    </div>
+  </article>`;
+}
+
 export function renderOwnerListPage(payload) {
   const cards = payload.items.length > 0
     ? payload.items.map(renderItemCard).join('')
@@ -200,6 +214,32 @@ export function renderOwnerSearchPage(payload) {
   });
 }
 
+export function renderPublicListPage(payload) {
+  const cards = payload.items.length > 0
+    ? payload.items.map(renderPublicItemCard).join('')
+    : '<section class="empty">当前还没有公开内容。</section>';
+
+  return renderLayout({
+    title: '公开内容列表',
+    heading: '公开内容列表',
+    description: `共 ${payload.totalItems} 条公开内容，当前第 ${payload.page} 页。`,
+    body: `<section class="grid">${cards}</section>`
+  }).replace('action="/web/search"', 'action="/web/public/search"');
+}
+
+export function renderPublicSearchPage(payload) {
+  const cards = payload.items.length > 0
+    ? payload.items.map(renderPublicItemCard).join('')
+    : `<section class="empty">没有匹配“${escapeHtml(payload.query)}”的公开内容。</section>`;
+
+  return renderLayout({
+    title: `公开搜索：${payload.query || '全部内容'}`,
+    heading: '公开搜索结果',
+    description: payload.query ? `关键词：${payload.query}` : '未提供关键词，显示默认公开结果。',
+    body: `<section class="grid">${cards}</section>`
+  }).replace('action="/web/search"', 'action="/web/public/search"');
+}
+
 export function renderOwnerDetailPage(detail) {
   const contentBlock = detail.type === 'rich_text'
     ? `<section class="card"><h2>HTML 预览</h2><iframe class="preview" sandbox="" srcdoc="${escapeHtml(detail.htmlContent)}"></iframe></section>`
@@ -216,7 +256,7 @@ export function renderOwnerDetailPage(detail) {
 export function renderPublicContentPage(payload) {
   const body = payload.type === 'rich_text'
     ? `<section class="detail"><section class="card"><div class="badge">公开 HTML 内容</div><h2>${escapeHtml(payload.title || '未命名内容')}</h2><iframe class="preview" sandbox="" srcdoc="${escapeHtml(payload.htmlContent)}"></iframe></section></section>`
-    : `<section class="detail"><section class="card"><div class="badge">公开文件</div><h2>${escapeHtml(payload.title || payload.originalFilename || '文件内容')}</h2><p>文件名：${escapeHtml(payload.download.filename)}</p><p>MIME：${escapeHtml(payload.download.mimeType)}</p><p><a download="${escapeHtml(payload.download.filename)}" href="data:${escapeHtml(payload.download.mimeType)};base64,${payload.download.contentBase64}">下载文件</a></p><pre>${escapeHtml(payload.download.contentBase64.slice(0, 160))}${payload.download.contentBase64.length > 160 ? '...' : ''}</pre></section></section>`;
+    : `<section class="detail"><section class="card"><div class="badge">公开文件</div><h2>${escapeHtml(payload.title || payload.originalFilename || '文件内容')}</h2><p>文件名：${escapeHtml(payload.download.filename)}</p><p>MIME：${escapeHtml(payload.download.mimeType)}</p><p><a href="${escapeHtml(payload.accessUrl)}">下载原始文件</a></p><p>说明：此链接返回原始文件字节流，不再通过页面内嵌 base64 交付。</p></section></section>`;
 
   return renderLayout({
     title: payload.title || payload.originalFilename || '公开访问',

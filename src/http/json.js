@@ -5,6 +5,11 @@ export function json(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
+export function binary(response, status, body, headers = {}) {
+  response.writeHead(status, headers);
+  response.end(body);
+}
+
 export async function readJson(request) {
   const chunks = [];
 
@@ -40,6 +45,15 @@ export function serverError(response, message, details) {
     error: 'internal_error',
     message,
     ...(details ? { details } : {})
+  });
+}
+
+export function errorResponse(response, status, errorCode, message, details, diagnostic) {
+  json(response, status, {
+    error: errorCode,
+    message,
+    ...(details ? { details } : {}),
+    ...(diagnostic ? { diagnostic } : {})
   });
 }
 

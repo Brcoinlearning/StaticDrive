@@ -1,14 +1,17 @@
 import { createApiKeyAuth } from './auth/api-key-auth.js';
 import { createContentService } from './content/service.js';
-import { badRequest, forbidden, gone, json, methodNotAllowed, notFound, readJson, serverError } from './http/json.js';
+import { getErrorDetails, getErrorDiagnostic, serializeErrorForLog } from './errors.js';
+import { badRequest, binary, errorResponse, forbidden, gone, json, methodNotAllowed, notFound, readJson } from './http/json.js';
 import { PocketBaseClient } from './pocketbase/client.js';
-import { renderErrorPage, renderOwnerDetailPage, renderOwnerListPage, renderOwnerSearchPage, renderPublicContentPage } from './web/page-renderer.js';
+import { renderErrorPage, renderOwnerDetailPage, renderOwnerListPage, renderOwnerSearchPage, renderPublicContentPage, renderPublicListPage, renderPublicSearchPage } from './web/page-renderer.js';
 
 function routeGroup(pathname) {
   if (pathname === '/api/health') return 'health';
   if (pathname === '/web/list') return 'owner-page';
   if (pathname === '/web/search') return 'owner-page';
   if (pathname.startsWith('/web/detail/')) return 'owner-page';
+  if (pathname === '/web/public/list') return 'public-page';
+  if (pathname === '/web/public/search') return 'public-page';
   if (pathname.startsWith('/web/public/content/')) return 'public-page';
   if (pathname.startsWith('/web/public/share/')) return 'public-page';
   if (pathname.startsWith('/api/write/')) return 'write';
@@ -22,6 +25,64 @@ function html(response, statusCode, body) {
     'content-type': 'text/html; charset=utf-8'
   });
   response.end(body);
+}
+
+function encodeContentDispositionFileName(filename) {
+  return encodeURIComponent(filename).replaceAll(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function sendPublicContent(response, result) {
+  if (result.type !== 'file') {
+    json(response, 200, result);
+    return;
+  }
+
+  const filename = result.download.filename || 'download.bin';
+  binary(response, 200, result.fileContent, {
+    'content-type': result.download.mimeType || 'application/octet-stream',
+    'content-length': String(result.fileContent.byteLength),
+    'content-disposition': `attachment; filename*=UTF-8''${encodeContentDispositionFileName(filename)}`,
+    'x-content-type-options': 'nosniff'
+  });
+}
+
+function logRequestError(error, request, extra = {}) {
+  const context = {
+    method: request.method,
+    url: request.url,
+    ...extra
+  };
+
+  console.error(JSON.stringify(serializeErrorForLog(error, context)));
+}
+
+function respondApiError(response, request, error, fallbackMessage) {
+  if (error.statusCode === 400) {
+    badRequest(response, error.message, error.code);
+    return;
+  }
+
+  if (error.statusCode === 403) {
+    forbidden(response, error.message);
+    return;
+  }
+
+  if (error.statusCode === 404) {
+    errorResponse(response, 404, 'not_found', error.message, error.code, getErrorDiagnostic(error));
+    return;
+  }
+
+  if (error.statusCode === 410) {
+    gone(response, error.message);
+    return;
+  }
+
+  logRequestError(error, request);
+  errorResponse(response, error.statusCode ?? 500, error.code ?? 'internal_error', fallbackMessage, getErrorDetails(error), getErrorDiagnostic(error));
+}
+
+function shouldLogPageError(error) {
+  return !error?.statusCode || error.statusCode >= 500;
 }
 
 export function createApp(config, dependencies = {}) {
@@ -65,7 +126,8 @@ export function createApp(config, dependencies = {}) {
           routeGroups: {
             write: '/api/write/*',
             query: '/api/query/*',
-            public: '/api/public/*'
+            public: '/api/public/*',
+            publicPages: '/web/public/*'
           }
         });
       } catch (error) {
@@ -73,7 +135,8 @@ export function createApp(config, dependencies = {}) {
           service: 'business-shell',
           status: 'degraded',
           error: 'pocketbase_unavailable',
-          details: error.message
+          details: getErrorDetails(error),
+          ...(getErrorDiagnostic(error) ? { diagnostic: getErrorDiagnostic(error) } : {})
         });
       }
       return;
@@ -89,45 +152,21 @@ export function createApp(config, dependencies = {}) {
         if (url.pathname.startsWith('/api/public/content/')) {
           const contentHash = url.pathname.slice('/api/public/content/'.length);
           const result = await contentService.getPublicContentByHash(contentHash);
-          json(response, 200, result);
+          sendPublicContent(response, result);
           return;
         }
 
         if (url.pathname.startsWith('/api/public/share/')) {
           const shareHash = url.pathname.slice('/api/public/share/'.length);
           const result = await contentService.getPublicContentByShareHash(shareHash);
-          json(response, 200, result);
+          sendPublicContent(response, result);
           return;
         }
 
         notFound(response);
         return;
       } catch (error) {
-        if (error.statusCode === 400) {
-          badRequest(response, error.message, error.code);
-          return;
-        }
-
-        if (error.statusCode === 403) {
-          forbidden(response, error.message);
-          return;
-        }
-
-        if (error.statusCode === 404) {
-          json(response, 404, {
-            error: 'not_found',
-            message: error.message,
-            details: error.code
-          });
-          return;
-        }
-
-        if (error.statusCode === 410) {
-          gone(response, error.message);
-          return;
-        }
-
-        serverError(response, 'Public content access failed.', error.message);
+        respondApiError(response, request, error, 'Public content access failed.');
         return;
       }
     }
@@ -139,6 +178,25 @@ export function createApp(config, dependencies = {}) {
       }
 
       try {
+        if (url.pathname === '/web/public/list') {
+          const result = await contentService.listPublicContents({
+            page: url.searchParams.get('page'),
+            perPage: url.searchParams.get('perPage')
+          });
+          html(response, 200, renderPublicListPage(result));
+          return;
+        }
+
+        if (url.pathname === '/web/public/search') {
+          const result = await contentService.searchPublicContents({
+            q: url.searchParams.get('q'),
+            page: url.searchParams.get('page'),
+            perPage: url.searchParams.get('perPage')
+          });
+          html(response, 200, renderPublicSearchPage(result));
+          return;
+        }
+
         if (url.pathname.startsWith('/web/public/content/')) {
           const contentHash = url.pathname.slice('/web/public/content/'.length);
           const result = await contentService.getPublicContentByHash(contentHash);
@@ -156,6 +214,9 @@ export function createApp(config, dependencies = {}) {
         notFound(response);
         return;
       } catch (error) {
+        if (shouldLogPageError(error)) {
+          logRequestError(error, request, { routeGroup: 'public-page' });
+        }
         if (error.statusCode === 400) {
           const page = renderErrorPage({ title: '访问参数错误', message: error.message, statusCode: 400 });
           html(response, page.statusCode, page.html);
@@ -235,6 +296,9 @@ export function createApp(config, dependencies = {}) {
         notFound(response);
         return;
       } catch (error) {
+        if (shouldLogPageError(error)) {
+          logRequestError(error, request, { routeGroup: 'owner-page' });
+        }
         if (error.statusCode === 400) {
           const page = renderErrorPage({ title: '请求参数错误', message: error.message, statusCode: 400 });
           html(response, page.statusCode, page.html);
@@ -325,26 +389,7 @@ export function createApp(config, dependencies = {}) {
         notFound(response);
         return;
       } catch (error) {
-        if (error.statusCode === 400) {
-          badRequest(response, error.message, error.code);
-          return;
-        }
-
-        if (error.statusCode === 403) {
-          forbidden(response, error.message);
-          return;
-        }
-
-        if (error.statusCode === 404) {
-          json(response, 404, {
-            error: 'not_found',
-            message: error.message,
-            details: error.code
-          });
-          return;
-        }
-
-        serverError(response, 'Content write failed.', error.message);
+        respondApiError(response, request, error, 'Content write failed.');
         return;
       }
     }
@@ -393,26 +438,7 @@ export function createApp(config, dependencies = {}) {
         notFound(response);
         return;
       } catch (error) {
-        if (error.statusCode === 400) {
-          badRequest(response, error.message, error.code);
-          return;
-        }
-
-        if (error.statusCode === 403) {
-          forbidden(response, error.message);
-          return;
-        }
-
-        if (error.statusCode === 404) {
-          json(response, 404, {
-            error: 'not_found',
-            message: error.message,
-            details: error.code
-          });
-          return;
-        }
-
-        serverError(response, 'Content query failed.', error.message);
+        respondApiError(response, request, error, 'Content query failed.');
         return;
       }
     }
