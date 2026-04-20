@@ -16,7 +16,16 @@ PB_PUBLIC_DIR="${PB_PUBLIC_DIR:-./pocketbase/public}"
 PB_MIGRATIONS_DIR="${PB_MIGRATIONS_DIR:-./pb_migrations}"
 PB_BIN="$ROOT_DIR/pocketbase/bin/pocketbase"
 
-mkdir -p "$ROOT_DIR/$PB_DATA_DIR" "$ROOT_DIR/$PB_PUBLIC_DIR" "$ROOT_DIR/workspace"
+resolve_path() {
+  case "$1" in
+    /*) echo "$1" ;;
+    *) echo "$ROOT_DIR/$1" ;;
+  esac
+}
+
+bash "$ROOT_DIR/scripts/preflight.sh" pocketbase
+
+mkdir -p "$(resolve_path "$PB_DATA_DIR")" "$(resolve_path "$PB_PUBLIC_DIR")" "$ROOT_DIR/workspace"
 
 if [ ! -x "$PB_BIN" ]; then
   echo "PocketBase binary not found: $PB_BIN" >&2
@@ -26,6 +35,6 @@ fi
 
 exec "$PB_BIN" serve \
   --http="${PB_HOST}:${PB_PORT}" \
-  --dir="$ROOT_DIR/$PB_DATA_DIR" \
-  --publicDir="$ROOT_DIR/$PB_PUBLIC_DIR" \
-  --migrationsDir="$ROOT_DIR/$PB_MIGRATIONS_DIR"
+  --dir="$(resolve_path "$PB_DATA_DIR")" \
+  --publicDir="$(resolve_path "$PB_PUBLIC_DIR")" \
+  --migrationsDir="$(resolve_path "$PB_MIGRATIONS_DIR")"

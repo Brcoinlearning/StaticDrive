@@ -48,3 +48,15 @@ test('loadConfig keeps public base url optional and trims trailing slash', () =>
 
   assert.equal(config.publicBaseUrl, 'https://example.com');
 });
+
+test('loadConfig requires PocketBase admin credentials when service preflight requests them', () => {
+  assert.throws(
+    () => loadConfig({}, '/srv/app', { requirePocketbaseAdminCredentials: true }),
+    /PB_ADMIN_EMAIL is required to start the business shell\./
+  );
+
+  assert.throws(
+    () => loadConfig({ PB_ADMIN_EMAIL: 'admin@example.com' }, '/srv/app', { requirePocketbaseAdminCredentials: true }),
+    /PB_ADMIN_PASSWORD is required to start the business shell\./
+  );
+});

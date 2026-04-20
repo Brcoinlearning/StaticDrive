@@ -17,7 +17,7 @@ function toNumber(value, fallback) {
   return parsed;
 }
 
-export function loadConfig(env = process.env, cwd = process.cwd()) {
+export function loadConfig(env = process.env, cwd = process.cwd(), options = {}) {
   const pocketbaseBaseUrl = requireString(env.PB_BASE_URL, 'http://127.0.0.1:8090');
   const pocketbaseAdminEmail = requireString(env.PB_ADMIN_EMAIL, '');
   const pocketbaseAdminPassword = requireString(env.PB_ADMIN_PASSWORD, '');
@@ -32,6 +32,16 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
 
   if (!apiKeyHeader) {
     throw new Error('API_KEY_HEADER is required.');
+  }
+
+  if (options.requirePocketbaseAdminCredentials) {
+    if (!pocketbaseAdminEmail) {
+      throw new Error('PB_ADMIN_EMAIL is required to start the business shell.');
+    }
+
+    if (!pocketbaseAdminPassword) {
+      throw new Error('PB_ADMIN_PASSWORD is required to start the business shell.');
+    }
   }
 
   return {
