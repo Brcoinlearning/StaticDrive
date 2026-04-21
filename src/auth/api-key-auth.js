@@ -1,11 +1,15 @@
 import { json } from '../http/json.js';
 import { getErrorDetails, getErrorDiagnostic } from '../errors.js';
 
-export function createApiKeyAuth({ apiKeyHeader, pocketbaseClient }) {
+export function createApiKeyAuth({ apiKeyHeader, pocketbaseClient, allowMissing = false }) {
   return async function apiKeyAuth(request, response) {
     const apiKey = request.headers[apiKeyHeader];
 
     if (!apiKey || Array.isArray(apiKey)) {
+      if (allowMissing) {
+        return null;
+      }
+
       json(response, 401, {
         error: 'missing_api_key',
         message: `Missing API key header: ${apiKeyHeader}`

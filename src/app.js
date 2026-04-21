@@ -1,15 +1,20 @@
 import { createApiKeyAuth } from './auth/api-key-auth.js';
+import { buildExpiredSessionCookie, buildSessionCookie, createSessionAuth, createSessionStore } from './auth/session-auth.js';
 import { createContentService } from './content/service.js';
 import { getErrorDetails, getErrorDiagnostic, serializeErrorForLog } from './errors.js';
 import { badRequest, binary, errorResponse, forbidden, gone, json, methodNotAllowed, notFound, readJson } from './http/json.js';
 import { PocketBaseClient } from './pocketbase/client.js';
-import { renderErrorPage, renderOwnerDetailPage, renderOwnerListPage, renderOwnerSearchPage, renderPublicContentPage, renderPublicListPage, renderPublicSearchPage } from './web/page-renderer.js';
+import { renderCredentialPage, renderErrorPage, renderLoginPage, renderOwnerDetailPage, renderOwnerListPage, renderOwnerSearchPage, renderPublicContentPage, renderPublicListPage, renderPublicSearchPage } from './web/page-renderer.js';
 
 function routeGroup(pathname) {
   if (pathname === '/api/health') return 'health';
+  if (pathname === '/web/auth/login') return 'owner-auth-page';
+  if (pathname === '/web/auth/logout') return 'owner-auth-action';
+  if (pathname === '/web/credential') return 'owner-page';
   if (pathname === '/web/list') return 'owner-page';
   if (pathname === '/web/search') return 'owner-page';
   if (pathname.startsWith('/web/detail/')) return 'owner-page';
+  if (pathname.startsWith('/web/action/')) return 'owner-page-action';
   if (pathname === '/web/public/list') return 'public-page';
   if (pathname === '/web/public/search') return 'public-page';
   if (pathname.startsWith('/web/public/content/')) return 'public-page';
@@ -25,6 +30,14 @@ function html(response, statusCode, body) {
     'content-type': 'text/html; charset=utf-8'
   });
   response.end(body);
+}
+
+function redirect(response, location, headers = {}) {
+  response.writeHead(302, {
+    location,
+    ...headers
+  });
+  response.end('');
 }
 
 function encodeContentDispositionFileName(filename) {
@@ -85,6 +98,41 @@ function shouldLogPageError(error) {
   return !error?.statusCode || error.statusCode >= 500;
 }
 
+function buildFlashFromParams(searchParams) {
+  const message = searchParams.get('message');
+  if (!message) {
+    return null;
+  }
+
+  const tone = searchParams.get('tone') ?? 'success';
+  const title = searchParams.get('title') ?? (tone === 'error' ? '操作失败' : '操作已完成');
+  return {
+    tone,
+    title,
+    message
+  };
+}
+
+function buildRedirectUrl(pathname, flash) {
+  const nextUrl = new URL(`http://127.0.0.1${pathname}`);
+  if (flash?.message) {
+    nextUrl.searchParams.set('tone', flash.tone ?? 'success');
+    nextUrl.searchParams.set('title', flash.title ?? '操作已完成');
+    nextUrl.searchParams.set('message', flash.message);
+  }
+  return `${nextUrl.pathname}${nextUrl.search}`;
+}
+
+async function readForm(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
+
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return new URLSearchParams(raw);
+}
+
 export function createApp(config, dependencies = {}) {
   const pocketbaseClient = dependencies.pocketbaseClient ?? new PocketBaseClient({
     baseUrl: config.pocketbaseBaseUrl,
@@ -95,6 +143,16 @@ export function createApp(config, dependencies = {}) {
   const apiKeyAuth = createApiKeyAuth({
     apiKeyHeader: config.apiKeyHeader,
     pocketbaseClient
+  });
+  const optionalApiKeyAuth = createApiKeyAuth({
+    apiKeyHeader: config.apiKeyHeader,
+    pocketbaseClient,
+    allowMissing: true
+  });
+  const sessionStore = dependencies.sessionStore ?? createSessionStore();
+  const sessionAuth = createSessionAuth({
+    cookieName: config.ownerSessionCookieName,
+    sessionStore
   });
   const contentService = dependencies.contentService ?? createContentService({
     config,
@@ -127,7 +185,11 @@ export function createApp(config, dependencies = {}) {
             write: '/api/write/*',
             query: '/api/query/*',
             public: '/api/public/*',
-            publicPages: '/web/public/*'
+            publicPages: '/web/public/*',
+            ownerActions: '/web/action/*',
+            ownerBatch: '/web/action/batch',
+            ownerAuth: '/web/auth/login',
+            ownerCredential: '/web/credential'
           }
         });
       } catch (error) {
@@ -169,6 +231,86 @@ export function createApp(config, dependencies = {}) {
         respondApiError(response, request, error, 'Public content access failed.');
         return;
       }
+    }
+
+    if (group === 'owner-auth-page') {
+      if (request.method === 'GET') {
+        const existingSession = await sessionAuth(request);
+        if (existingSession) {
+          redirect(response, '/web/list');
+          return;
+        }
+
+        html(response, 200, renderLoginPage({
+          apiKeyHeader: config.apiKeyHeader,
+          flash: buildFlashFromParams(url.searchParams)
+        }));
+        return;
+      }
+
+      if (request.method === 'POST') {
+        const form = await readForm(request);
+        const formApiKey = form.get(config.apiKeyHeader);
+        const authRequest = {
+          ...request,
+          headers: {
+            ...request.headers,
+            [config.apiKeyHeader]: typeof formApiKey === 'string' ? formApiKey.trim() : formApiKey
+          }
+        };
+        const authContext = await optionalApiKeyAuth(authRequest, response);
+        if (!authContext) {
+          redirect(response, buildRedirectUrl('/web/auth/login', {
+            tone: 'error',
+            title: '登录失败',
+            message: 'API Key 无效，无法进入 owner 控制台。'
+          }));
+          return;
+        }
+
+        const token = sessionStore.createSession({
+          user: authContext.user,
+          apiKey: authContext.apiKey,
+          maxAgeMs: config.ownerSessionMaxAgeSeconds * 1000
+        });
+
+        redirect(response, buildRedirectUrl('/web/list', {
+          tone: 'success',
+          title: '登录成功',
+          message: '已进入 owner 控制台。'
+        }), {
+          'set-cookie': buildSessionCookie({
+            cookieName: config.ownerSessionCookieName,
+            token,
+            maxAgeSeconds: config.ownerSessionMaxAgeSeconds
+          })
+        });
+        return;
+      }
+
+      methodNotAllowed(response);
+      return;
+    }
+
+    if (group === 'owner-auth-action') {
+      if (request.method !== 'POST') {
+        methodNotAllowed(response);
+        return;
+      }
+
+      const sessionContext = await sessionAuth(request);
+      if (sessionContext?.sessionToken) {
+        sessionStore.deleteSession(sessionContext.sessionToken);
+      }
+
+      redirect(response, buildRedirectUrl('/web/auth/login', {
+        tone: 'info',
+        title: '已退出',
+        message: 'owner 会话已结束。'
+      }), {
+        'set-cookie': buildExpiredSessionCookie(config.ownerSessionCookieName)
+      });
+      return;
     }
 
     if (group === 'public-page') {
@@ -247,9 +389,26 @@ export function createApp(config, dependencies = {}) {
       }
     }
 
-    const authContext = await apiKeyAuth(request, response);
-    if (!authContext) {
-      return;
+    let authContext = null;
+    if (group === 'owner-page' || group === 'owner-page-action') {
+      authContext = await sessionAuth(request);
+      if (!authContext) {
+        authContext = await optionalApiKeyAuth(request, response);
+      }
+
+      if (!authContext) {
+        redirect(response, buildRedirectUrl('/web/auth/login', {
+          tone: 'info',
+          title: '请先登录',
+          message: '请输入有效 API Key 进入 owner 控制台。'
+        }));
+        return;
+      }
+    } else {
+      authContext = await apiKeyAuth(request, response);
+      if (!authContext) {
+        return;
+      }
     }
 
     if (group === 'owner-page') {
@@ -259,6 +418,16 @@ export function createApp(config, dependencies = {}) {
       }
 
       try {
+        if (url.pathname === '/web/credential') {
+          html(response, 200, renderCredentialPage({
+            user: authContext.user,
+            apiKeyHeader: config.apiKeyHeader,
+            cookieName: config.ownerSessionCookieName,
+            flash: buildFlashFromParams(url.searchParams)
+          }));
+          return;
+        }
+
         if (url.pathname === '/web/list') {
           const result = await contentService.listContents({
             ownerUserId: authContext.user.id,
@@ -266,6 +435,7 @@ export function createApp(config, dependencies = {}) {
             perPage: url.searchParams.get('perPage')
           });
 
+          result.flash = buildFlashFromParams(url.searchParams);
           html(response, 200, renderOwnerListPage(result));
           return;
         }
@@ -278,6 +448,7 @@ export function createApp(config, dependencies = {}) {
             perPage: url.searchParams.get('perPage')
           });
 
+          result.flash = buildFlashFromParams(url.searchParams);
           html(response, 200, renderOwnerSearchPage(result));
           return;
         }
@@ -289,6 +460,7 @@ export function createApp(config, dependencies = {}) {
             contentId
           });
 
+          result.flash = buildFlashFromParams(url.searchParams);
           html(response, 200, renderOwnerDetailPage(result));
           return;
         }
@@ -319,6 +491,119 @@ export function createApp(config, dependencies = {}) {
 
         const page = renderErrorPage({ title: '页面加载失败', message: error.message, statusCode: 500 });
         html(response, page.statusCode, page.html);
+        return;
+      }
+    }
+
+    if (group === 'owner-page-action') {
+      if (request.method !== 'POST') {
+        methodNotAllowed(response);
+        return;
+      }
+
+      let actionContentId = '';
+
+      try {
+        const form = await readForm(request);
+
+        if (url.pathname === '/web/action/batch') {
+          const contentIds = form.getAll('contentIds');
+          const action = form.get('batchAction');
+          const result = await contentService.batchOperateContents({
+            ownerUserId: authContext.user.id,
+            action,
+            contentIds
+          });
+          const actionLabel = action === 'share' ? '批量分享' : action === 'share_revoke' ? '批量撤销分享' : '批量删除';
+          redirect(response, buildRedirectUrl('/web/list', {
+            tone: 'success',
+            title: actionLabel + '已完成',
+            message: '已完成 ' + result.succeededCount + ' 条内容的' + actionLabel + '。'
+          }));
+          return;
+        }
+
+        const contentId = form.get('contentId');
+        if (typeof contentId !== 'string' || !contentId.trim()) {
+          const error = new Error('contentId is required.');
+          error.statusCode = 400;
+          throw error;
+        }
+
+        actionContentId = contentId.trim();
+
+        if (url.pathname === '/web/action/share') {
+          await contentService.createShareLink({
+            ownerUserId: authContext.user.id,
+            contentId: actionContentId
+          });
+          redirect(response, buildRedirectUrl(`/web/detail/${encodeURIComponent(actionContentId)}`, {
+            tone: 'success',
+            title: '分享已创建',
+            message: '该内容已开放公开访问。'
+          }));
+          return;
+        }
+
+        if (url.pathname === '/web/action/share/revoke') {
+          await contentService.revokeShareLink({
+            ownerUserId: authContext.user.id,
+            contentId: actionContentId
+          });
+          redirect(response, buildRedirectUrl(`/web/detail/${encodeURIComponent(actionContentId)}`, {
+            tone: 'success',
+            title: '分享已撤销',
+            message: '公开访问已关闭。'
+          }));
+          return;
+        }
+
+        if (url.pathname === '/web/action/update') {
+          const title = form.get('title');
+          const htmlContent = form.get('htmlContent');
+          await contentService.updateContent({
+            ownerUserId: authContext.user.id,
+            contentId: actionContentId,
+            title,
+            ...(htmlContent !== null ? { htmlContent } : {})
+          });
+          redirect(response, buildRedirectUrl(`/web/detail/${encodeURIComponent(actionContentId)}`, {
+            tone: 'success',
+            title: '内容已更新',
+            message: '内容更新已保存。'
+          }));
+          return;
+        }
+
+        if (url.pathname === '/web/action/delete') {
+          await contentService.deleteContent({
+            ownerUserId: authContext.user.id,
+            contentId: actionContentId
+          });
+          redirect(response, buildRedirectUrl('/web/list', {
+            tone: 'success',
+            title: '内容已删除',
+            message: `内容 ${actionContentId} 已被删除。`
+          }));
+          return;
+        }
+
+        notFound(response);
+        return;
+      } catch (error) {
+        if (shouldLogPageError(error)) {
+          logRequestError(error, request, { routeGroup: 'owner-page-action' });
+        }
+
+        const redirectTarget = actionContentId
+          ? `/web/detail/${encodeURIComponent(actionContentId)}`
+          : '/web/list';
+
+        redirect(response, buildRedirectUrl(redirectTarget, {
+          tone: 'error',
+          title: '操作失败',
+          message: error.message || 'Owner 页面操作失败。'
+        }));
         return;
       }
     }
@@ -370,6 +655,29 @@ export function createApp(config, dependencies = {}) {
           const result = await contentService.revokeShareLink({
             ownerUserId: authContext.user.id,
             contentId: body.contentId
+          });
+
+          json(response, 200, result);
+          return;
+        }
+
+        if (url.pathname === '/api/write/update') {
+          const result = await contentService.updateContent({
+            ownerUserId: authContext.user.id,
+            contentId: body.contentId,
+            title: body.title,
+            ...(Object.prototype.hasOwnProperty.call(body, 'htmlContent') ? { htmlContent: body.htmlContent } : {})
+          });
+
+          json(response, 200, result);
+          return;
+        }
+
+        if (url.pathname === '/api/write/batch') {
+          const result = await contentService.batchOperateContents({
+            ownerUserId: authContext.user.id,
+            action: body.action,
+            contentIds: body.contentIds
           });
 
           json(response, 200, result);

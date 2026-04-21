@@ -30,6 +30,46 @@ function normalizeSearch(value) {
   return value.trim();
 }
 
+function normalizeOptionalString(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  return value.trim();
+}
+
+function normalizeBatchContentIds(contentIds) {
+  if (!Array.isArray(contentIds)) {
+    const error = new Error('contentIds must be an array.');
+    error.statusCode = 400;
+    error.code = 'invalid_batch_payload';
+    throw error;
+  }
+
+  const normalized = [];
+  const seen = new Set();
+  for (const value of contentIds) {
+    if (typeof value !== 'string' || !value.trim()) {
+      continue;
+    }
+
+    const next = value.trim();
+    if (!seen.has(next)) {
+      seen.add(next);
+      normalized.push(next);
+    }
+  }
+
+  if (normalized.length === 0) {
+    const error = new Error('At least one contentId is required.');
+    error.statusCode = 400;
+    error.code = 'invalid_batch_payload';
+    throw error;
+  }
+
+  return normalized;
+}
+
 function normalizePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 1) {
@@ -370,6 +410,50 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
     return buildContentDetail(config, record);
   }
 
+  async function updateContent({ ownerUserId, contentId, title, htmlContent }) {
+    const record = await ensureOwnedContent(ownerUserId, contentId);
+    const nextTitle = normalizeOptionalString(title);
+    const updateRecord = {};
+
+    if (nextTitle !== null) {
+      if (!nextTitle) {
+        const error = new Error('title cannot be empty.');
+        error.statusCode = 400;
+        error.code = 'invalid_update_payload';
+        throw error;
+      }
+      updateRecord.title = nextTitle;
+    }
+
+    if (htmlContent !== undefined) {
+      if (record.type !== 'rich_text') {
+        const error = new Error('Only rich text content supports htmlContent updates.');
+        error.statusCode = 400;
+        error.code = 'invalid_update_payload';
+        throw error;
+      }
+
+      if (typeof htmlContent !== 'string') {
+        const error = new Error('htmlContent must be a string.');
+        error.statusCode = 400;
+        error.code = 'invalid_update_payload';
+        throw error;
+      }
+
+      updateRecord.html_content = htmlContent;
+    }
+
+    if (Object.keys(updateRecord).length === 0) {
+      const error = new Error('No updatable fields were provided.');
+      error.statusCode = 400;
+      error.code = 'invalid_update_payload';
+      throw error;
+    }
+
+    const updatedRecord = await pocketbaseClient.updateContent(record.id, updateRecord);
+    return buildContentDetail(config, updatedRecord);
+  }
+
   async function listPublicContents({ page, perPage }) {
     const normalizedPage = normalizePositiveInteger(page, 1);
     const normalizedPerPage = normalizePositiveInteger(perPage, 20);
@@ -466,6 +550,61 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
       deleted: true,
       revokedShareCount: shareLinks.length,
       removedFile: Boolean(absoluteStoragePath)
+    };
+  }
+
+  async function batchOperateContents({ ownerUserId, action, contentIds }) {
+    const normalizedAction = typeof action === 'string' ? action.trim() : '';
+    const normalizedContentIds = normalizeBatchContentIds(contentIds);
+
+    if (!['share', 'share_revoke', 'delete'].includes(normalizedAction)) {
+      const error = new Error('Unsupported batch action.');
+      error.statusCode = 400;
+      error.code = 'invalid_batch_payload';
+      throw error;
+    }
+
+    const results = [];
+    for (const contentId of normalizedContentIds) {
+      if (normalizedAction === 'share') {
+        const result = await createShareLink({ ownerUserId, contentId });
+        results.push({
+          contentId,
+          action: normalizedAction,
+          status: 'success',
+          shareHash: result.shareHash,
+          contentHash: result.contentHash
+        });
+        continue;
+      }
+
+      if (normalizedAction === 'share_revoke') {
+        const result = await revokeShareLink({ ownerUserId, contentId });
+        results.push({
+          contentId,
+          action: normalizedAction,
+          status: 'success',
+          revoked: result.revoked,
+          shareHash: result.shareHash
+        });
+        continue;
+      }
+
+      const result = await deleteContent({ ownerUserId, contentId });
+      results.push({
+        contentId,
+        action: normalizedAction,
+        status: 'success',
+        deleted: result.deleted,
+        removedFile: result.removedFile
+      });
+    }
+
+    return {
+      action: normalizedAction,
+      totalCount: normalizedContentIds.length,
+      succeededCount: results.length,
+      results
     };
   }
 
@@ -591,6 +730,8 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
     listContents,
     searchContents,
     getContentDetail,
+    updateContent,
+    batchOperateContents,
     listPublicContents,
     searchPublicContents,
     createShareLink,

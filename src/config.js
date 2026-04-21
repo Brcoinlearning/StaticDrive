@@ -25,6 +25,8 @@ export function loadConfig(env = process.env, cwd = process.cwd(), options = {})
   const apiKeyHeader = requireString(env.API_KEY_HEADER, 'x-shutong49-api-key').toLowerCase();
   const workspaceDirInput = requireString(env.WORKSPACE_DIR, './workspace');
   const publicBaseUrl = requireString(env.PUBLIC_BASE_URL, '');
+  const ownerSessionCookieName = requireString(env.OWNER_SESSION_COOKIE_NAME, 'shutong49_owner_session');
+  const ownerSessionMaxAgeSeconds = toNumber(env.OWNER_SESSION_MAX_AGE_SECONDS, 43200);
 
   if (!pocketbaseBaseUrl) {
     throw new Error('PB_BASE_URL is required.');
@@ -52,6 +54,8 @@ export function loadConfig(env = process.env, cwd = process.cwd(), options = {})
     servicePort: toNumber(env.SERVICE_PORT, 8787),
     apiKeyHeader,
     workspaceDir: path.resolve(cwd, workspaceDirInput),
-    publicBaseUrl: publicBaseUrl.replace(/\/$/, '')
+    publicBaseUrl: publicBaseUrl.replace(/\/$/, ''),
+    ownerSessionCookieName,
+    ownerSessionMaxAgeSeconds
   };
 }
