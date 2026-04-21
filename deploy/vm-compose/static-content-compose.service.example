@@ -1,0 +1,16 @@
+[Unit]
+Description=Static Content Service via Docker Compose
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/static-content-service
+RemainAfterExit=yes
+ExecStart=/usr/bin/env APP_ENV_FILE=.env docker compose -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d
+ExecStop=/usr/bin/env APP_ENV_FILE=.env docker compose -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

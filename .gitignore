@@ -9,3 +9,7 @@
 pocketbase/bin/pocketbase
 pocketbase/data/
 pocketbase/public/
+node_modules/
+playwright-report/
+test-results/
+.docker-cache/

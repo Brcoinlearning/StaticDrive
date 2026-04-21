@@ -1,0 +1,14 @@
+.git
+.gitignore
+.claude
+.worktrees
+node_modules
+npm-debug.log*
+playwright-report
+test-results
+.demo-state
+workspace
+pocketbase/data
+pocketbase/public
+.DS_Store
+.env

@@ -13,6 +13,9 @@
 
 ## 文档结构
 
+完整入口索引见 [docs/README.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/README.md)。
+
+
 - `docs/P1-MVP/01-before-execution/`：P1 开始前的正式产物，如需求、技术选型、架构、任务拆解、测试契约
 - `docs/P1-MVP/02-after-execution/`：P1 执行后的联调、验收、演示与结果文档
 - `docs/P2-Stabilization/01-before-execution/`：P2 稳定化阶段开始前的范围、架构、任务与路线图文档
@@ -110,13 +113,27 @@ npm start
 
 ## 自动化验证
 
+基础自动化：
+
 执行：
 
 ```bash
 node --test
 ```
 
-当前 fresh 验证结果：`51/51` 通过。
+当前 Phase 3 收口后的验证结果：`70/70` 通过。
+
+浏览器级关键回归：
+
+```bash
+npm run test:e2e
+```
+
+如需观察浏览器过程：
+
+```bash
+npm run test:e2e:headed
+```
 
 如果只想跑关键子集：
 
@@ -178,6 +195,10 @@ public 接口：
 
 网页层：
 
+- `GET /web/auth/login`
+- `POST /web/auth/login`
+- `POST /web/auth/logout`
+- `GET /web/credential`
 - `GET /web/list`
 - `GET /web/search`
 - `GET /web/detail/:contentId`
@@ -194,6 +215,46 @@ public 接口：
 4. 打开 `/web/public/list`、`/web/public/search?q=关键词`，再进入公开详情页。
 5. 验证 `/api/public/content/:contentHash` 或 `/api/public/share/:shareHash` 返回真实文件下载而不是 JSON。
 6. 执行 `/api/write/share/revoke` 和 `/api/write/delete`，观察 public 状态变化。
+
+## Docker Desktop 本机部署
+
+如果你当前还没有 Linux 虚拟机，但已经安装了 `Docker Desktop`，建议先走本机容器化部署。
+
+准备：
+
+```bash
+cp .env.docker.example .env
+APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example build
+APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example up -d
+```
+
+首次启动后：
+
+1. 打开 `http://127.0.0.1:8090/_/` 创建 PocketBase 管理员。
+2. 保持 `.env` 中的 `PB_ADMIN_EMAIL` / `PB_ADMIN_PASSWORD` 与后台一致。
+3. 在 `users_api` 中插入一条可用的 API Key 记录。
+4. 访问 `http://127.0.0.1:8787/web/auth/login` 和 `http://127.0.0.1:8787/web/public/list` 做首轮验证。
+
+常用命令：
+
+```bash
+APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example ps
+APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example logs -f pocketbase
+APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example logs -f app
+APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example down
+```
+
+更完整的说明见 [vm-and-docker-deployment-guide.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/01-before-execution/vm-and-docker-deployment-guide.md)。
+
+首次启动检查单见 [docker-first-start-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-first-start-checklist.md)。
+
+虚拟机上的 `Nginx + HTTPS + systemd/compose` 模板见 [vm-compose-production-template.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-compose-production-template.md)。
+
+Docker 六项核心能力验收见 [docker-six-capability-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-six-capability-acceptance.md)。
+
+Docker 部署收口记录见 [p4-docker-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/p4-docker-acceptance-closeout.md)。
+
+虚拟机上线最短执行清单见 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
 
 ## MiniPC 部署建议
 
@@ -212,8 +273,10 @@ public 接口：
 
 ## 当前已知取舍
 
-- owner 网页层当前依赖 API Key 头，适合内测和联调，不是最终浏览器会话方案
+- owner 网页层当前已支持基于 API Key 登录后签发 HttpOnly session cookie 的浏览器会话；Open API 仍继续使用请求头鉴权
+- owner 前端当前覆盖列表、搜索、详情、单条分享/撤销分享/删除、富文本更新、批量分享/撤销/删除、凭据页与退出
 - 启动脚本当前提供的是本地预检与失败提示，不是完整守护进程管理方案
+- E2E 默认使用 Playwright 自起的 `8788` 临时服务实例，不复用你手工运行在 `8787` 的服务
 - 冷启动当前已具备仓库内 dry-run 验证，但仍依赖联网下载 PocketBase 与 PocketBase 后台人工初始化
 
 ## PocketBase 注意事项

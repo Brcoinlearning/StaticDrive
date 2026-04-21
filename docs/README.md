@@ -34,14 +34,40 @@
 - `docs/P3-Owner-Frontend/01-before-execution/`
   P3 owner 产品化前端阶段的准备文档。
 - `docs/P3-Owner-Frontend/02-after-execution/`
-  当前预留，待 P3 实施后补充。
+  P3 执行后的人工验收、结果记录与后续收口文档。
 
 重点入口：
 
 - [phase-3-architecture.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/01-before-execution/phase-3-architecture.md)
 - [phase-3-tasks.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/01-before-execution/phase-3-tasks.md)
+- [p3-t2-owner-frontend-manual-check.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t2-owner-frontend-manual-check.md)
+- [p3-t2-owner-frontend-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t2-owner-frontend-closeout.md)
+- [p3-t3-content-mutation-manual-check.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t3-content-mutation-manual-check.md)
+- [p3-t3-content-mutation-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t3-content-mutation-closeout.md)
+- [p3-t4-owner-credential-manual-check.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t4-owner-credential-manual-check.md)
+- [p3-t4-owner-credential-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t4-owner-credential-closeout.md)
+- [p3-t5-browser-e2e-manual-check.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t5-browser-e2e-manual-check.md)
+- [p3-t5-browser-e2e-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t5-browser-e2e-closeout.md)
+- [p3-t6-phase-3-operations-and-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t6-phase-3-operations-and-acceptance.md)
+- [p3-t6-phase-3-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t6-phase-3-closeout.md)
 
-## 4. Reference
+## 4. P4-Deployment
+
+- `docs/P4-Deployment/01-before-execution/`
+  P4 部署准备阶段的部署策略、虚拟机部署与容器化落地文档。
+- `docs/P4-Deployment/02-after-execution/`
+  P4 执行后的 Docker 首启检查单、VM Compose 生产模板与部署收口文档。
+
+重点入口：
+
+- [vm-and-docker-deployment-guide.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/01-before-execution/vm-and-docker-deployment-guide.md)
+- [docker-first-start-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-first-start-checklist.md)
+- [vm-compose-production-template.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-compose-production-template.md)
+- [docker-six-capability-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-six-capability-acceptance.md)
+- [p4-docker-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/p4-docker-acceptance-closeout.md)
+- [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)
+
+## 5. Reference
 
 - `docs/_reference/`
   非阶段主链的补充说明与参考材料。
