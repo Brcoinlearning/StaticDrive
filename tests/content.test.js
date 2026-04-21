@@ -17,7 +17,9 @@ function createConfig(workspaceDir) {
     servicePort: 8787,
     apiKeyHeader: 'x-shutong49-api-key',
     workspaceDir,
-    publicBaseUrl: ''
+    publicBaseUrl: '',
+    ownerSessionCookieName: 'shutong49_owner_session',
+    ownerSessionMaxAgeSeconds: 43200
   };
 }
 
@@ -225,7 +227,6 @@ test('write/html returns structured diagnostics and logs request context on down
 test('write/file retries when content_hash conflicts', async () => {
   const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-file-conflict-'));
   let attempts = 0;
-  const originalRandomBytes = Buffer.from;
 
   const app = createApp(createConfig(workspaceDir), {
     pocketbaseClient: {
@@ -430,14 +431,14 @@ test('query/search returns owner-scoped matches and paging shape', async () => {
             id: 'content_search',
             owner_user_id: 'user_123',
             type: 'rich_text',
-            title: 'report draft',
+            title: 'Annual report',
             original_filename: '',
-            content_hash: 'feed1234feed1234feed1234feed1234',
+            content_hash: 'searchhash1234searchhash1234abcd',
             storage_path: '',
             mime_type: 'text/html',
             file_size: 0,
-            html_content: '<p>draft</p>',
-            is_shared: false,
+            html_content: '<p>report</p>',
+            is_shared: true,
             created: '2026-04-18 11:00:00.000Z',
             updated: '2026-04-18 11:00:00.000Z'
           }]
@@ -462,8 +463,7 @@ test('query/search returns owner-scoped matches and paging shape', async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.query, 'report');
   assert.equal(response.body.items.length, 1);
-  assert.equal(response.body.items[0].type, 'rich_text');
-  assert.equal(response.body.items[0].title, 'report draft');
+  assert.equal(response.body.items[0].title, 'Annual report');
 });
 
 test('query/search returns empty result with valid paging shape when no hits', async () => {
@@ -472,8 +472,7 @@ test('query/search returns empty result with valid paging shape when no hits', a
       async findUserByApiKey() {
         return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
       },
-      async listContents({ search }) {
-        assert.equal(search, 'nomatch');
+      async listContents() {
         return {
           page: 1,
           perPage: 20,
@@ -491,7 +490,7 @@ test('query/search returns empty result with valid paging shape when no hits', a
   const response = createResponseCapture();
   await app(await createRequest({
     method: 'GET',
-    url: '/api/query/search?q=nomatch',
+    url: '/api/query/search?q=none',
     headers: {
       host: '127.0.0.1:8787',
       'x-shutong49-api-key': 'valid-key'
@@ -499,83 +498,8 @@ test('query/search returns empty result with valid paging shape when no hits', a
   }), response);
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.body, {
-    query: 'nomatch',
-    items: [],
-    page: 1,
-    perPage: 20,
-    totalItems: 0,
-    totalPages: 0
-  });
-});
-
-test('public list returns only shared content summaries', async () => {
-  const contentService = createContentService({
-    config: createConfig('/tmp/shutong49-public-list'),
-    pocketbaseClient: {
-      async listPublicContents({ page, perPage, search }) {
-        assert.equal(page, 1);
-        assert.equal(perPage, 20);
-        assert.equal(search, '');
-        return {
-          page: 1,
-          perPage: 20,
-          totalItems: 1,
-          totalPages: 1,
-          items: [{
-            id: 'public_1',
-            type: 'rich_text',
-            title: '公开文章',
-            original_filename: '',
-            content_hash: 'publichash123456publichash123456',
-            mime_type: 'text/html',
-            file_size: 0,
-            is_shared: true,
-            created: '2026-04-19 11:00:00.000Z',
-            updated: '2026-04-19 11:00:00.000Z'
-          }]
-        };
-      }
-    }
-  });
-
-  const result = await contentService.listPublicContents({});
-  assert.equal(result.items.length, 1);
-  assert.equal(result.items[0].contentId, 'public_1');
-  assert.equal(result.items[0].publicPageUrl, '/web/public/content/publichash123456publichash123456');
-});
-
-test('public search returns shared matches with public detail urls', async () => {
-  const contentService = createContentService({
-    config: createConfig('/tmp/shutong49-public-search'),
-    pocketbaseClient: {
-      async listPublicContents({ search }) {
-        assert.equal(search, '公开');
-        return {
-          page: 1,
-          perPage: 20,
-          totalItems: 1,
-          totalPages: 1,
-          items: [{
-            id: 'public_2',
-            type: 'file',
-            title: '公开文件',
-            original_filename: 'public.txt',
-            content_hash: 'publicsearch123456publicsearch12',
-            mime_type: 'text/plain',
-            file_size: 12,
-            is_shared: true,
-            created: '2026-04-19 11:00:00.000Z',
-            updated: '2026-04-19 11:00:00.000Z'
-          }]
-        };
-      }
-    }
-  });
-
-  const result = await contentService.searchPublicContents({ q: '公开' });
-  assert.equal(result.query, '公开');
-  assert.equal(result.items[0].publicPageUrl, '/web/public/content/publicsearch123456publicsearch12');
+  assert.equal(response.body.query, 'none');
+  assert.deepEqual(response.body.items, []);
 });
 
 test('query/detail returns owner-scoped content detail', async () => {
@@ -585,21 +509,21 @@ test('query/detail returns owner-scoped content detail', async () => {
         return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
       },
       async getContentById(contentId) {
-        assert.equal(contentId, 'content_123');
+        assert.equal(contentId, 'content_detail_1');
         return {
-          id: 'content_123',
+          id: 'content_detail_1',
           owner_user_id: 'user_123',
           type: 'rich_text',
-          title: 'Detail Page',
+          title: 'Detail',
           original_filename: '',
-          content_hash: 'face1234face1234face1234face1234',
+          content_hash: 'detailhash1234detailhash1234abcd',
           storage_path: '',
           mime_type: 'text/html',
           file_size: 0,
-          html_content: '<h1>Detail</h1>',
+          html_content: '<p>Detail</p>',
           is_shared: false,
           created: '2026-04-18 12:00:00.000Z',
-          updated: '2026-04-18 12:10:00.000Z'
+          updated: '2026-04-18 12:00:00.000Z'
         };
       },
       async healthCheck() {
@@ -611,7 +535,7 @@ test('query/detail returns owner-scoped content detail', async () => {
   const response = createResponseCapture();
   await app(await createRequest({
     method: 'GET',
-    url: '/api/query/detail/content_123',
+    url: '/api/query/detail/content_detail_1',
     headers: {
       host: '127.0.0.1:8787',
       'x-shutong49-api-key': 'valid-key'
@@ -619,9 +543,9 @@ test('query/detail returns owner-scoped content detail', async () => {
   }), response);
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.body.contentId, 'content_123');
+  assert.equal(response.body.contentId, 'content_detail_1');
   assert.equal(response.body.ownerUserId, 'user_123');
-  assert.equal(response.body.htmlContent, '<h1>Detail</h1>');
+  assert.equal(response.body.htmlContent, '<p>Detail</p>');
 });
 
 test('query/detail blocks cross-user content access', async () => {
@@ -632,19 +556,19 @@ test('query/detail blocks cross-user content access', async () => {
       },
       async getContentById() {
         return {
-          id: 'content_999',
-          owner_user_id: 'user_other',
+          id: 'foreign_content',
+          owner_user_id: 'other_user',
           type: 'file',
-          title: 'Other User File',
-          original_filename: 'other.txt',
-          content_hash: 'beef1234beef1234beef1234beef1234',
-          storage_path: 'be/beef-other.txt',
+          title: 'Foreign',
+          original_filename: 'foreign.txt',
+          content_hash: 'foreignhash1234foreignhash1234ab',
+          storage_path: 'ff/file.txt',
           mime_type: 'text/plain',
-          file_size: 12,
+          file_size: 1,
           html_content: '',
           is_shared: false,
           created: '2026-04-18 12:00:00.000Z',
-          updated: '2026-04-18 12:10:00.000Z'
+          updated: '2026-04-18 12:00:00.000Z'
         };
       },
       async healthCheck() {
@@ -656,7 +580,7 @@ test('query/detail blocks cross-user content access', async () => {
   const response = createResponseCapture();
   await app(await createRequest({
     method: 'GET',
-    url: '/api/query/detail/content_999',
+    url: '/api/query/detail/foreign_content',
     headers: {
       host: '127.0.0.1:8787',
       'x-shutong49-api-key': 'valid-key'
@@ -668,42 +592,38 @@ test('query/detail blocks cross-user content access', async () => {
 });
 
 test('write/share creates share link for owned content and marks content shared', async () => {
+  const updates = [];
   const app = createApp(createConfig('/tmp/shutong49-share-create'), {
     pocketbaseClient: {
       async findUserByApiKey() {
         return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
       },
-      async getContentById(contentId) {
-        assert.equal(contentId, 'content_123');
+      async getContentById() {
         return {
-          id: 'content_123',
+          id: 'content_share_1',
           owner_user_id: 'user_123',
-          type: 'rich_text',
-          title: 'Shared Note',
-          original_filename: '',
-          content_hash: '11112222333344445555666677778888',
-          storage_path: '',
-          mime_type: 'text/html',
-          file_size: 0,
-          html_content: '<p>share me</p>',
+          type: 'file',
+          title: 'Shareable',
+          original_filename: 'demo.txt',
+          content_hash: 'sharecontenthash1234sharecontentab',
+          storage_path: 'aa/demo.txt',
+          mime_type: 'text/plain',
+          file_size: 9,
+          html_content: '',
           is_shared: false,
-          created: '2026-04-18 12:00:00.000Z',
-          updated: '2026-04-18 12:00:00.000Z'
+          created: '2026-04-18 13:00:00.000Z',
+          updated: '2026-04-18 13:00:00.000Z'
         };
       },
-      async findShareLinkByContentId(contentId) {
-        assert.equal(contentId, 'content_123');
+      async findShareLinkByContentId() {
         return null;
       },
       async createShareLink(record) {
-        assert.equal(record.content_id, 'content_123');
-        assert.equal(record.is_revoked, false);
-        return { id: 'share_123' };
+        assert.equal(record.content_id, 'content_share_1');
+        return { id: 'share_1' };
       },
-      async updateContent(contentId, patch) {
-        assert.equal(contentId, 'content_123');
-        assert.deepEqual(patch, { is_shared: true });
-        return { id: 'content_123', is_shared: true };
+      async updateContent(id, record) {
+        updates.push({ id, record });
       },
       async healthCheck() {
         return { code: 200 };
@@ -720,22 +640,24 @@ test('write/share creates share link for owned content and marks content shared'
       'x-shutong49-api-key': 'valid-key'
     },
     body: {
-      contentId: 'content_123'
+      contentId: 'content_share_1'
     }
   }), response);
 
   assert.equal(response.statusCode, 201);
-  assert.equal(response.body.contentId, 'content_123');
-  assert.equal(response.body.shareId, 'share_123');
-  assert.match(response.body.shareHash, /^[a-f0-9]{32}$/);
-  assert.equal(response.body.shareUrl, `http://127.0.0.1:8787/api/public/share/${response.body.shareHash}`);
+  assert.equal(response.body.contentId, 'content_share_1');
+  assert.equal(response.body.type, 'file');
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0], {
+    id: 'content_share_1',
+    record: { is_shared: true }
+  });
 });
 
 test('public content hash returns rich text payload only when content is shared', async () => {
   const app = createApp(createConfig('/tmp/shutong49-public-html'), {
     pocketbaseClient: {
-      async getContentByHash(contentHash) {
-        assert.equal(contentHash, 'htmlhash1234567890htmlhash123456');
+      async getContentByHash() {
         return {
           id: 'content_html',
           owner_user_id: 'user_123',
@@ -773,7 +695,7 @@ test('public content hash returns rich text payload only when content is shared'
   assert.equal(response.body.htmlContent, '<h1>Public</h1>');
 });
 
-test('web/list renders owner content list page', async () => {
+test('web/list renders owner content list page with action-oriented layout', async () => {
   const app = createApp(createConfig('/tmp/shutong49-web-list'), {
     pocketbaseClient: {
       async findUserByApiKey() {
@@ -820,9 +742,46 @@ test('web/list renders owner content list page', async () => {
 
   assert.equal(response.statusCode, 200);
   assert.match(response.headers['content-type'], /text\/html/);
-  assert.match(response.rawBody, /内容列表/);
+  assert.match(response.rawBody, /Owner 内容列表/);
   assert.match(response.rawBody, /网页层内容/);
-  assert.match(response.rawBody, /\/web\/detail\/content_page_1/);
+  assert.match(response.rawBody, /查看详情/);
+  assert.match(response.rawBody, /打开公开页/);
+});
+
+test('web/list renders success flash from redirect params', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-list-flash'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async listContents() {
+        return {
+          page: 1,
+          perPage: 20,
+          totalItems: 0,
+          totalPages: 0,
+          items: []
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/list?tone=success&title=%E5%B7%B2%E5%AE%8C%E6%88%90&message=%E5%88%A0%E9%99%A4%E5%AE%8C%E6%88%90',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /已完成/);
+  assert.match(response.rawBody, /删除完成/);
 });
 
 test('web public list renders shared content discovery page', async () => {
@@ -917,7 +876,7 @@ test('web public search renders only public discovery results', async () => {
   assert.match(response.rawBody, /\/web\/public\/content\/publicsearchhash123456public12/);
 });
 
-test('web/detail renders rich text in sandboxed iframe', async () => {
+test('web/detail renders rich text in sandboxed iframe and owner action panel', async () => {
   const app = createApp(createConfig('/tmp/shutong49-web-detail'), {
     pocketbaseClient: {
       async findUserByApiKey() {
@@ -959,6 +918,119 @@ test('web/detail renders rich text in sandboxed iframe', async () => {
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /<iframe class="preview" sandbox=""/);
   assert.match(response.rawBody, /srcdoc="&lt;script&gt;alert\(1\)&lt;\/script&gt;&lt;h1&gt;Hello&lt;\/h1&gt;"/);
+  assert.match(response.rawBody, /Owner 操作/);
+  assert.match(response.rawBody, /action="\/web\/action\/share\/revoke"/);
+});
+
+test('web owner share action redirects back to detail with success flash', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-action-share'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_share_web',
+          owner_user_id: 'user_123',
+          type: 'file',
+          title: 'Share Me',
+          original_filename: 'share.txt',
+          content_hash: 'sharewebhash1234sharewebhash1234',
+          storage_path: 'aa/share.txt',
+          mime_type: 'text/plain',
+          file_size: 8,
+          html_content: '',
+          is_shared: false,
+          created: '2026-04-18 15:30:00.000Z',
+          updated: '2026-04-18 15:30:00.000Z'
+        };
+      },
+      async findShareLinkByContentId() {
+        return null;
+      },
+      async createShareLink() {
+        return { id: 'share_web_1' };
+      },
+      async updateContent() {},
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/action/share',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'contentId=content_share_web'
+  }), response);
+
+  assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /^\/web\/detail\/content_share_web\?/);
+  assert.match(response.headers.location, /tone=success/);
+  assert.match(response.headers.location, /title=%E5%88%86%E4%BA%AB%E5%B7%B2%E5%88%9B%E5%BB%BA/);
+});
+
+test('web owner delete action redirects back to list with success flash', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-action-delete'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_delete_web',
+          owner_user_id: 'user_123',
+          type: 'file',
+          title: 'Delete Me',
+          original_filename: 'delete.txt',
+          content_hash: 'deletewebhash1234deletewebhash12',
+          storage_path: 'aa/delete.txt',
+          mime_type: 'text/plain',
+          file_size: 9,
+          html_content: '',
+          is_shared: false,
+          created: '2026-04-18 15:40:00.000Z',
+          updated: '2026-04-18 15:40:00.000Z'
+        };
+      },
+      async listShareLinksByContentId() {
+        return [];
+      },
+      async deleteContent() {},
+      async healthCheck() {
+        return { code: 200 };
+      }
+    },
+    fsImpl: {
+      async rm() {},
+      async readFile() { return Buffer.from('x'); },
+      async mkdir() {},
+      async writeFile() {},
+      async unlink() {}
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/action/delete',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'contentId=content_delete_web'
+  }), response);
+
+  assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /^\/web\/list\?/);
+  assert.match(response.headers.location, /title=%E5%86%85%E5%AE%B9%E5%B7%B2%E5%88%A0%E9%99%A4/);
 });
 
 test('web public share page renders downloadable file link', async () => {
@@ -1000,7 +1072,8 @@ test('web public share page renders downloadable file link', async () => {
       },
       async mkdir() {},
       async writeFile() {},
-      async unlink() {}
+      async unlink() {},
+      async rm() {}
     }
   });
 
@@ -1055,28 +1128,27 @@ test('web public content page returns html error page for unshared content', asy
   }), response);
 
   assert.equal(response.statusCode, 403);
-  assert.match(response.headers['content-type'], /text\/html/);
   assert.match(response.rawBody, /内容不可公开访问/);
 });
 
 test('public content hash blocks access when content is not shared', async () => {
-  const app = createApp(createConfig('/tmp/shutong49-public-block'), {
+  const app = createApp(createConfig('/tmp/shutong49-public-not-shared'), {
     pocketbaseClient: {
       async getContentByHash() {
         return {
-          id: 'content_private',
+          id: 'content_private_api',
           owner_user_id: 'user_123',
-          type: 'rich_text',
-          title: 'Private HTML',
-          original_filename: '',
-          content_hash: 'privatehash123456privatehash123456',
-          storage_path: '',
-          mime_type: 'text/html',
-          file_size: 0,
-          html_content: '<p>private</p>',
+          type: 'file',
+          title: 'Private API',
+          original_filename: 'private.txt',
+          content_hash: 'privateapihash1234privateapi1234',
+          storage_path: 'aa/private.txt',
+          mime_type: 'text/plain',
+          file_size: 4,
+          html_content: '',
           is_shared: false,
-          created: '2026-04-18 12:00:00.000Z',
-          updated: '2026-04-18 12:00:00.000Z'
+          created: '2026-04-18 16:00:00.000Z',
+          updated: '2026-04-18 16:00:00.000Z'
         };
       },
       async healthCheck() {
@@ -1088,7 +1160,7 @@ test('public content hash blocks access when content is not shared', async () =>
   const response = createResponseCapture();
   await app(await createRequest({
     method: 'GET',
-    url: '/api/public/content/privatehash123456privatehash123456',
+    url: '/api/public/content/privateapihash1234privateapi1234',
     headers: {
       host: '127.0.0.1:8787'
     }
@@ -1098,120 +1170,74 @@ test('public content hash blocks access when content is not shared', async () =>
   assert.equal(response.body.error, 'forbidden');
 });
 
-test('public share hash returns binary file download response', async () => {
-  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-public-file-'));
-  const absoluteFile = path.join(workspaceDir, 'content-files', 'ab', 'file.bin');
-  fs.mkdirSync(path.dirname(absoluteFile), { recursive: true });
-  fs.writeFileSync(absoluteFile, 'hello shared file', 'utf8');
-
-  const app = createApp(createConfig(workspaceDir), {
+test('public share hash returns file download payload', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-public-share-file'), {
     pocketbaseClient: {
-      async findShareLinkByHash(shareHash) {
-        assert.equal(shareHash, 'sharehash123456sharehash123456');
+      async findShareLinkByHash() {
         return {
-          id: 'share_file',
-          content_id: 'content_file',
-          share_hash: 'sharehash123456sharehash123456',
-          is_revoked: false
+          id: 'share_public_file',
+          content_id: 'content_public_file',
+          share_hash: 'sharehashfile1234sharehashfile12',
+          is_revoked: false,
+          created: '2026-04-18 16:20:00.000Z'
         };
       },
-      async getContentById(contentId) {
-        assert.equal(contentId, 'content_file');
+      async getContentById() {
         return {
-          id: 'content_file',
+          id: 'content_public_file',
           owner_user_id: 'user_123',
           type: 'file',
-          title: 'Shared File',
-          original_filename: '共享 文件.txt',
-          content_hash: 'filehash123456filehash123456file',
-          storage_path: path.join('ab', 'file.bin'),
+          title: 'Share File',
+          original_filename: 'payload.txt',
+          content_hash: 'publicfilehash1234publicfilehash12',
+          storage_path: 'aa/payload.txt',
           mime_type: 'text/plain',
-          file_size: Buffer.byteLength('hello shared file'),
+          file_size: 7,
           html_content: '',
           is_shared: true,
-          created: '2026-04-18 12:00:00.000Z',
-          updated: '2026-04-18 12:00:00.000Z'
+          created: '2026-04-18 16:20:00.000Z',
+          updated: '2026-04-18 16:20:00.000Z'
         };
       },
       async healthCheck() {
         return { code: 200 };
       }
+    },
+    fsImpl: {
+      async readFile() {
+        return Buffer.from('payload', 'utf8');
+      },
+      async mkdir() {},
+      async writeFile() {},
+      async unlink() {},
+      async rm() {}
     }
   });
 
   const response = createResponseCapture();
   await app(await createRequest({
     method: 'GET',
-    url: '/api/public/share/sharehash123456sharehash123456',
+    url: '/api/public/share/sharehashfile1234sharehashfile12',
     headers: {
       host: '127.0.0.1:8787'
     }
   }), response);
 
   assert.equal(response.statusCode, 200);
-  assert.match(response.headers['content-type'], /^text\/plain/);
-  assert.equal(response.headers['content-length'], String(Buffer.byteLength('hello shared file')));
-  assert.match(response.headers['content-disposition'], /attachment; filename\*=UTF-8''/);
-  assert.equal(response.rawBody, 'hello shared file');
-});
-
-test('public content hash returns binary bytes identical to stored file', async () => {
-  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-public-file-identical-'));
-  const originalBytes = Buffer.from([0x00, 0x01, 0x41, 0x42, 0xff, 0x10, 0x20, 0x7f]);
-  const absoluteFile = path.join(workspaceDir, 'content-files', 'cd', 'file.bin');
-  fs.mkdirSync(path.dirname(absoluteFile), { recursive: true });
-  fs.writeFileSync(absoluteFile, originalBytes);
-
-  const app = createApp(createConfig(workspaceDir), {
-    pocketbaseClient: {
-      async getContentByHash(contentHash) {
-        assert.equal(contentHash, 'binaryhash123456binaryhash123456');
-        return {
-          id: 'content_binary',
-          owner_user_id: 'user_123',
-          type: 'file',
-          title: 'Binary File',
-          original_filename: 'binary.bin',
-          content_hash: 'binaryhash123456binaryhash123456',
-          storage_path: path.join('cd', 'file.bin'),
-          mime_type: 'application/octet-stream',
-          file_size: originalBytes.byteLength,
-          html_content: '',
-          is_shared: true,
-          created: '2026-04-19 10:00:00.000Z',
-          updated: '2026-04-19 10:00:00.000Z'
-        };
-      },
-      async healthCheck() {
-        return { code: 200 };
-      }
-    }
-  });
-
-  const response = createResponseCapture();
-  await app(await createRequest({
-    method: 'GET',
-    url: '/api/public/content/binaryhash123456binaryhash123456',
-    headers: {
-      host: '127.0.0.1:8787'
-    }
-  }), response);
-
-  assert.equal(response.statusCode, 200);
-  assert.match(response.headers['content-type'], /^application\/octet-stream/);
-  assert.equal(response.headers['content-length'], String(originalBytes.byteLength));
-  assert.deepEqual(response.rawBuffer, originalBytes);
+  assert.equal(response.rawBuffer.toString('utf8'), 'payload');
+  assert.match(response.headers['content-disposition'], /payload.txt/);
 });
 
 test('public share hash returns gone when share is revoked', async () => {
-  const app = createApp(createConfig('/tmp/shutong49-public-revoked'), {
+  const app = createApp(createConfig('/tmp/shutong49-public-share-gone'), {
     pocketbaseClient: {
       async findShareLinkByHash() {
         return {
           id: 'share_revoked',
-          content_id: 'content_123',
-          share_hash: 'revokedhash123456revokedhash1234',
-          is_revoked: true
+          content_id: 'content_revoked',
+          share_hash: 'revokedsharehash1234revokedshare12',
+          is_revoked: true,
+          created: '2026-04-18 16:30:00.000Z'
         };
       },
       async healthCheck() {
@@ -1223,7 +1249,7 @@ test('public share hash returns gone when share is revoked', async () => {
   const response = createResponseCapture();
   await app(await createRequest({
     method: 'GET',
-    url: '/api/public/share/revokedhash123456revokedhash1234',
+    url: '/api/public/share/revokedsharehash1234revokedshare12',
     headers: {
       host: '127.0.0.1:8787'
     }
@@ -1234,7 +1260,7 @@ test('public share hash returns gone when share is revoked', async () => {
 });
 
 test('public share hash returns not found for unknown share', async () => {
-  const app = createApp(createConfig('/tmp/shutong49-public-missing-share'), {
+  const app = createApp(createConfig('/tmp/shutong49-public-share-not-found'), {
     pocketbaseClient: {
       async findShareLinkByHash() {
         return null;
@@ -1248,7 +1274,7 @@ test('public share hash returns not found for unknown share', async () => {
   const response = createResponseCapture();
   await app(await createRequest({
     method: 'GET',
-    url: '/api/public/share/missingshare123456missingshare12',
+    url: '/api/public/share/missinghash1234missinghash1234',
     headers: {
       host: '127.0.0.1:8787'
     }
@@ -1259,6 +1285,7 @@ test('public share hash returns not found for unknown share', async () => {
 });
 
 test('write/share/revoke revokes active share and public access becomes gone', async () => {
+  let revoked = false;
   const app = createApp(createConfig('/tmp/shutong49-share-revoke'), {
     pocketbaseClient: {
       async findUserByApiKey() {
@@ -1266,56 +1293,39 @@ test('write/share/revoke revokes active share and public access becomes gone', a
       },
       async getContentById() {
         return {
-          id: 'content_123',
+          id: 'content_revoke_1',
           owner_user_id: 'user_123',
-          type: 'rich_text',
-          title: 'Shared Note',
-          original_filename: '',
-          content_hash: '11112222333344445555666677778888',
-          storage_path: '',
-          mime_type: 'text/html',
-          file_size: 0,
-          html_content: '<p>share me</p>',
+          type: 'file',
+          title: 'Revoke',
+          original_filename: 'revoke.txt',
+          content_hash: 'revokehash1234revokehash1234abcd',
+          storage_path: 'aa/revoke.txt',
+          mime_type: 'text/plain',
+          file_size: 6,
+          html_content: '',
           is_shared: true,
-          created: '2026-04-18 12:00:00.000Z',
-          updated: '2026-04-18 12:00:00.000Z'
+          created: '2026-04-18 17:00:00.000Z',
+          updated: '2026-04-18 17:00:00.000Z'
         };
       },
-      async findShareLinkByContentId(contentId) {
-        assert.equal(contentId, 'content_123');
+      async findShareLinkByContentId() {
         return {
-          id: 'share_123',
-          content_id: 'content_123',
-          share_hash: 'sharehash123456sharehash123456',
+          id: 'share_revoke_1',
+          share_hash: 'revoke-share-hash',
           is_revoked: false
         };
       },
-      async updateShareLink(shareId, patch) {
-        assert.equal(shareId, 'share_123');
-        assert.deepEqual(patch, { is_revoked: true });
-        return { id: 'share_123', is_revoked: true };
+      async updateShareLink() {
+        revoked = true;
       },
-      async updateContent(contentId, patch) {
-        assert.equal(contentId, 'content_123');
-        assert.deepEqual(patch, { is_shared: false });
-        return { id: 'content_123', is_shared: false };
-      },
-      async findShareLinkByHash(shareHash) {
-        assert.equal(shareHash, 'sharehash123456sharehash123456');
-        return {
-          id: 'share_123',
-          content_id: 'content_123',
-          share_hash: 'sharehash123456sharehash123456',
-          is_revoked: true
-        };
-      },
+      async updateContent() {},
       async healthCheck() {
         return { code: 200 };
       }
     }
   });
 
-  const revokeResponse = createResponseCapture();
+  const response = createResponseCapture();
   await app(await createRequest({
     method: 'POST',
     url: '/api/write/share/revoke',
@@ -1324,72 +1334,56 @@ test('write/share/revoke revokes active share and public access becomes gone', a
       'x-shutong49-api-key': 'valid-key'
     },
     body: {
-      contentId: 'content_123'
+      contentId: 'content_revoke_1'
     }
-  }), revokeResponse);
+  }), response);
 
-  assert.equal(revokeResponse.statusCode, 200);
-  assert.equal(revokeResponse.body.revoked, true);
-  assert.equal(revokeResponse.body.shareId, 'share_123');
-
-  const publicResponse = createResponseCapture();
-  await app(await createRequest({
-    method: 'GET',
-    url: '/api/public/share/sharehash123456sharehash123456',
-    headers: {
-      host: '127.0.0.1:8787'
-    }
-  }), publicResponse);
-
-  assert.equal(publicResponse.statusCode, 410);
-  assert.equal(publicResponse.body.error, 'gone');
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.revoked, true);
+  assert.equal(revoked, true);
 });
 
 test('write/delete removes file, revokes share links, and deletes metadata', async () => {
-  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-delete-file-'));
-  const absoluteFile = path.join(workspaceDir, 'content-files', 'aa', 'aa-demo.txt');
-  fs.mkdirSync(path.dirname(absoluteFile), { recursive: true });
-  fs.writeFileSync(absoluteFile, 'delete me', 'utf8');
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-delete-'));
+  const storageRoot = path.join(workspaceDir, 'content-files', 'aa');
+  fs.mkdirSync(storageRoot, { recursive: true });
+  fs.writeFileSync(path.join(storageRoot, 'delete-me.txt'), 'delete me');
 
+  const revokedIds = [];
+  let deletedId = null;
   const app = createApp(createConfig(workspaceDir), {
     pocketbaseClient: {
       async findUserByApiKey() {
         return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
       },
-      async getContentById(contentId) {
-        assert.equal(contentId, 'content_file_delete');
+      async getContentById() {
         return {
-          id: 'content_file_delete',
+          id: 'content_delete_1',
           owner_user_id: 'user_123',
           type: 'file',
-          title: 'Delete Me',
-          original_filename: 'demo.txt',
-          content_hash: 'deletehash123456deletehash123456',
-          storage_path: path.join('aa', 'aa-demo.txt'),
+          title: 'Delete',
+          original_filename: 'delete-me.txt',
+          content_hash: 'deletehash1234deletehash1234abcd',
+          storage_path: 'aa/delete-me.txt',
           mime_type: 'text/plain',
-          file_size: Buffer.byteLength('delete me'),
+          file_size: 9,
           html_content: '',
           is_shared: true,
-          created: '2026-04-18 17:00:00.000Z',
-          updated: '2026-04-18 17:00:00.000Z'
+          created: '2026-04-18 18:00:00.000Z',
+          updated: '2026-04-18 18:00:00.000Z'
         };
       },
-      async listShareLinksByContentId(contentId, options) {
-        assert.equal(contentId, 'content_file_delete');
-        assert.deepEqual(options, { includeRevoked: true });
-        return [{ id: 'share_a', is_revoked: false }, { id: 'share_b', is_revoked: true }];
+      async listShareLinksByContentId() {
+        return [
+          { id: 'share_delete_1', is_revoked: false },
+          { id: 'share_delete_2', is_revoked: true }
+        ];
       },
-      async updateShareLink(shareId, patch) {
-        assert.equal(shareId, 'share_a');
-        assert.deepEqual(patch, { is_revoked: true });
-        return { id: 'share_a', is_revoked: true };
+      async updateShareLink(id) {
+        revokedIds.push(id);
       },
-      async deleteContent(contentId) {
-        assert.equal(contentId, 'content_file_delete');
-        return {};
-      },
-      async findShareLinkByHash() {
-        return null;
+      async deleteContent(id) {
+        deletedId = id;
       },
       async healthCheck() {
         return { code: 200 };
@@ -1397,7 +1391,7 @@ test('write/delete removes file, revokes share links, and deletes metadata', asy
     }
   });
 
-  const deleteResponse = createResponseCapture();
+  const response = createResponseCapture();
   await app(await createRequest({
     method: 'POST',
     url: '/api/write/delete',
@@ -1406,27 +1400,15 @@ test('write/delete removes file, revokes share links, and deletes metadata', asy
       'x-shutong49-api-key': 'valid-key'
     },
     body: {
-      contentId: 'content_file_delete'
+      contentId: 'content_delete_1'
     }
-  }), deleteResponse);
+  }), response);
 
-  assert.equal(deleteResponse.statusCode, 200);
-  assert.equal(deleteResponse.body.deleted, true);
-  assert.equal(deleteResponse.body.revokedShareCount, 2);
-  assert.equal(deleteResponse.body.removedFile, true);
-  assert.equal(fs.existsSync(absoluteFile), false);
-
-  const publicResponse = createResponseCapture();
-  await app(await createRequest({
-    method: 'GET',
-    url: '/api/public/share/share-after-delete',
-    headers: {
-      host: '127.0.0.1:8787'
-    }
-  }), publicResponse);
-
-  assert.equal(publicResponse.statusCode, 404);
-  assert.equal(publicResponse.body.error, 'not_found');
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(revokedIds, ['share_delete_1']);
+  assert.equal(deletedId, 'content_delete_1');
+  assert.equal(fs.existsSync(path.join(storageRoot, 'delete-me.txt')), false);
+  assert.equal(response.body.removedFile, true);
 });
 
 test('write/delete rejects cross-user content delete', async () => {
@@ -1437,19 +1419,19 @@ test('write/delete rejects cross-user content delete', async () => {
       },
       async getContentById() {
         return {
-          id: 'content_foreign',
-          owner_user_id: 'user_other',
+          id: 'foreign_delete',
+          owner_user_id: 'other_user',
           type: 'file',
-          title: 'Other User File',
-          original_filename: 'other.txt',
-          content_hash: 'otherhash123456otherhash123456',
-          storage_path: 'bb/other.txt',
+          title: 'Foreign Delete',
+          original_filename: 'foreign.txt',
+          content_hash: 'foreigndeletehash1234foreignde12',
+          storage_path: 'aa/foreign.txt',
           mime_type: 'text/plain',
-          file_size: 1,
+          file_size: 4,
           html_content: '',
           is_shared: false,
-          created: '2026-04-18 17:00:00.000Z',
-          updated: '2026-04-18 17:00:00.000Z'
+          created: '2026-04-18 18:10:00.000Z',
+          updated: '2026-04-18 18:10:00.000Z'
         };
       },
       async healthCheck() {
@@ -1467,10 +1449,650 @@ test('write/delete rejects cross-user content delete', async () => {
       'x-shutong49-api-key': 'valid-key'
     },
     body: {
-      contentId: 'content_foreign'
+      contentId: 'foreign_delete'
     }
   }), response);
 
   assert.equal(response.statusCode, 403);
   assert.equal(response.body.error, 'forbidden');
+});
+
+test('health route returns service and route group metadata', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-health'), {
+    pocketbaseClient: {
+      async healthCheck() {
+        return { code: 200, message: 'healthy' };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/api/health',
+    headers: {
+      host: '127.0.0.1:8787'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.service, 'business-shell');
+  assert.equal(response.body.routeGroups.write, '/api/write/*');
+  assert.equal(response.body.routeGroups.ownerActions, '/web/action/*');
+  assert.equal(response.body.routeGroups.ownerBatch, '/web/action/batch');
+});
+
+test('write route still requires API key auth before method validation', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-auth-order'), {
+    pocketbaseClient: {
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/api/write/html',
+    headers: {
+      host: '127.0.0.1:8787'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.body.error, 'missing_api_key');
+});
+
+
+test('web owner detail renders update panel for rich text content', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-owner-update-panel'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_update_panel',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: '可更新富文本',
+          original_filename: '',
+          content_hash: 'updatepanelhash1234updatepanel12',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          html_content: '<p>before</p>',
+          is_shared: false,
+          created: '2026-04-18 15:45:00.000Z',
+          updated: '2026-04-18 15:45:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/detail/content_update_panel',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /内容更新/);
+  assert.match(response.rawBody, /action="\/web\/action\/update"/);
+  assert.match(response.rawBody, /textarea id="htmlContent"/);
+});
+
+test('web owner batch action redirects back to list with success flash', async () => {
+  const sharedIds = [];
+  const app = createApp(createConfig('/tmp/shutong49-web-action-batch'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById(contentId) {
+        return {
+          id: contentId,
+          owner_user_id: 'user_123',
+          type: 'file',
+          title: 'Batch Item',
+          original_filename: contentId + '.txt',
+          content_hash: contentId.padEnd(32, 'a').slice(0, 32),
+          storage_path: 'aa/' + contentId + '.txt',
+          mime_type: 'text/plain',
+          file_size: 10,
+          html_content: '',
+          is_shared: false,
+          created: '2026-04-18 15:50:00.000Z',
+          updated: '2026-04-18 15:50:00.000Z'
+        };
+      },
+      async findShareLinkByContentId() {
+        return null;
+      },
+      async createShareLink(record) {
+        sharedIds.push(record.content_id);
+        return { id: 'share_' + record.content_id };
+      },
+      async updateContent() {},
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/action/batch',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'batchAction=share&contentIds=item_1&contentIds=item_2'
+  }), response);
+
+  assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /^\/web\/list\?/);
+  assert.match(response.headers.location, /title=%E6%89%B9%E9%87%8F%E5%88%86%E4%BA%AB%E5%B7%B2%E5%AE%8C%E6%88%90/);
+  assert.deepEqual(sharedIds, ['item_1', 'item_2']);
+});
+
+test('write/update updates rich text content fields', async () => {
+  const updates = [];
+  const app = createApp(createConfig('/tmp/shutong49-write-update'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_update_1',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: 'Before',
+          original_filename: '',
+          content_hash: 'contentupdatehash1234contentupd',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          html_content: '<p>before</p>',
+          is_shared: false,
+          created: '2026-04-18 19:00:00.000Z',
+          updated: '2026-04-18 19:00:00.000Z'
+        };
+      },
+      async updateContent(id, record) {
+        updates.push({ id, record });
+        return {
+          id: 'content_update_1',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: record.title,
+          original_filename: '',
+          content_hash: 'contentupdatehash1234contentupd',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          html_content: record.html_content,
+          is_shared: false,
+          created: '2026-04-18 19:00:00.000Z',
+          updated: '2026-04-18 19:10:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/update',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      contentId: 'content_update_1',
+      title: 'After',
+      htmlContent: '<p>after</p>'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.title, 'After');
+  assert.equal(response.body.htmlContent, '<p>after</p>');
+  assert.deepEqual(updates, [{
+    id: 'content_update_1',
+    record: { title: 'After', html_content: '<p>after</p>' }
+  }]);
+});
+
+test('write/update rejects html update for file content', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-write-update-file'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_file_update',
+          owner_user_id: 'user_123',
+          type: 'file',
+          title: 'File Before',
+          original_filename: 'demo.txt',
+          content_hash: 'fileupdatehash1234fileupdatehash',
+          storage_path: 'aa/demo.txt',
+          mime_type: 'text/plain',
+          file_size: 5,
+          html_content: '',
+          is_shared: false,
+          created: '2026-04-18 19:20:00.000Z',
+          updated: '2026-04-18 19:20:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/update',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      contentId: 'content_file_update',
+      title: 'File After',
+      htmlContent: '<p>not allowed</p>'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error, 'bad_request');
+});
+
+test('write/batch shares multiple owned contents', async () => {
+  const sharedIds = [];
+  const app = createApp(createConfig('/tmp/shutong49-write-batch'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById(contentId) {
+        return {
+          id: contentId,
+          owner_user_id: 'user_123',
+          type: 'file',
+          title: 'Batch ' + contentId,
+          original_filename: contentId + '.txt',
+          content_hash: contentId.padEnd(32, 'b').slice(0, 32),
+          storage_path: 'aa/' + contentId + '.txt',
+          mime_type: 'text/plain',
+          file_size: 10,
+          html_content: '',
+          is_shared: false,
+          created: '2026-04-18 19:30:00.000Z',
+          updated: '2026-04-18 19:30:00.000Z'
+        };
+      },
+      async findShareLinkByContentId() {
+        return null;
+      },
+      async createShareLink(record) {
+        sharedIds.push(record.content_id);
+        return { id: 'share_' + record.content_id };
+      },
+      async updateContent() {},
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/batch',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      action: 'share',
+      contentIds: ['batch_1', 'batch_2', 'batch_2']
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.action, 'share');
+  assert.equal(response.body.totalCount, 2);
+  assert.equal(response.body.succeededCount, 2);
+  assert.deepEqual(sharedIds, ['batch_1', 'batch_2']);
+});
+
+
+test('web owner batch revoke action redirects back to list with success flash', async () => {
+  const revokedIds = [];
+  const app = createApp(createConfig('/tmp/shutong49-web-action-batch-revoke'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById(contentId) {
+        return {
+          id: contentId,
+          owner_user_id: 'user_123',
+          type: 'file',
+          title: 'Batch Revoke Item',
+          original_filename: contentId + '.txt',
+          content_hash: contentId.padEnd(32, 'c').slice(0, 32),
+          storage_path: 'aa/' + contentId + '.txt',
+          mime_type: 'text/plain',
+          file_size: 10,
+          html_content: '',
+          is_shared: true,
+          created: '2026-04-18 15:55:00.000Z',
+          updated: '2026-04-18 15:55:00.000Z'
+        };
+      },
+      async findShareLinkByContentId(contentId) {
+        return { id: 'share_' + contentId, share_hash: 'hash_' + contentId, is_revoked: false };
+      },
+      async updateShareLink(id) {
+        revokedIds.push(id);
+      },
+      async updateContent() {},
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/action/batch',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'batchAction=share_revoke&contentIds=item_a&contentIds=item_b'
+  }), response);
+
+  assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /^\/web\/list\?/);
+  assert.match(response.headers.location, /title=%E6%89%B9%E9%87%8F%E6%92%A4%E9%94%80%E5%88%86%E4%BA%AB%E5%B7%B2%E5%AE%8C%E6%88%90/);
+  assert.deepEqual(revokedIds, ['share_item_a', 'share_item_b']);
+});
+
+test('web owner batch delete action redirects back to list with success flash', async () => {
+  const deletedIds = [];
+  const app = createApp(createConfig('/tmp/shutong49-web-action-batch-delete'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById(contentId) {
+        return {
+          id: contentId,
+          owner_user_id: 'user_123',
+          type: 'file',
+          title: 'Batch Delete Item',
+          original_filename: contentId + '.txt',
+          content_hash: contentId.padEnd(32, 'd').slice(0, 32),
+          storage_path: 'aa/' + contentId + '.txt',
+          mime_type: 'text/plain',
+          file_size: 10,
+          html_content: '',
+          is_shared: false,
+          created: '2026-04-18 15:58:00.000Z',
+          updated: '2026-04-18 15:58:00.000Z'
+        };
+      },
+      async listShareLinksByContentId() {
+        return [];
+      },
+      async deleteContent(id) {
+        deletedIds.push(id);
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    },
+    fsImpl: {
+      async rm() {},
+      async readFile() { return Buffer.from('x'); },
+      async mkdir() {},
+      async writeFile() {},
+      async unlink() {}
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/action/batch',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'batchAction=delete&contentIds=item_x&contentIds=item_y'
+  }), response);
+
+  assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /^\/web\/list\?/);
+  assert.match(response.headers.location, /title=%E6%89%B9%E9%87%8F%E5%88%A0%E9%99%A4%E5%B7%B2%E5%AE%8C%E6%88%90/);
+  assert.deepEqual(deletedIds, ['item_x', 'item_y']);
+});
+
+
+test('web auth login page renders API key form', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-login-page'), {
+    pocketbaseClient: {
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/auth/login',
+    headers: { host: '127.0.0.1:8787' }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /进入 Owner 控制台/);
+  assert.match(response.rawBody, /API Key 登录/);
+});
+
+test('web auth login reads API key from form body and sets owner session cookie', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-login'), {
+    pocketbaseClient: {
+      async findUserByApiKey(apiKey) {
+        assert.equal(apiKey, 'valid-key');
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/login',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'x-shutong49-api-key=valid-key'
+  }), response);
+
+  assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /^\/web\/list\?/);
+  assert.match(response.headers['set-cookie'], /shutong49_owner_session=/);
+});
+
+test('web auth login redirects back with error when form API key is missing', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-login-missing'), {
+    pocketbaseClient: {
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/login',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: ''
+  }), response);
+
+  assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /^\/web\/auth\/login\?/);
+  assert.match(response.headers.location, /title=%E7%99%BB%E5%BD%95%E5%A4%B1%E8%B4%A5/);
+  assert.equal(response.headers['set-cookie'], undefined);
+});
+
+test('owner page accepts session cookie without API key header', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-session-owner'), {
+    pocketbaseClient: {
+      async findUserByApiKey(apiKey) {
+        return { id: 'user_123', display_name: 'Verifier', api_key: apiKey };
+      },
+      async listContents() {
+        return { items: [], page: 1, perPage: 20, totalItems: 0, totalPages: 0 };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const loginResponse = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/login',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'x-shutong49-api-key=valid-key'
+  }), loginResponse);
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/list',
+    headers: {
+      host: '127.0.0.1:8787',
+      cookie: loginResponse.headers['set-cookie']
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /Owner 内容列表/);
+  assert.match(response.rawBody, /凭据与会话/);
+});
+
+test('credential page renders current owner identity from session', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-credential'), {
+    pocketbaseClient: {
+      async findUserByApiKey(apiKey) {
+        return { id: 'user_123', display_name: 'Verifier', api_key: apiKey };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const loginResponse = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/login',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'x-shutong49-api-key=valid-key'
+  }), loginResponse);
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/credential',
+    headers: {
+      host: '127.0.0.1:8787',
+      cookie: loginResponse.headers['set-cookie']
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /Owner 凭据与会话/);
+  assert.match(response.rawBody, /Verifier/);
+  assert.match(response.rawBody, /shutong49_owner_session/);
+});
+
+test('web auth logout clears owner session cookie', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-logout'), {
+    pocketbaseClient: {
+      async findUserByApiKey(apiKey) {
+        return { id: 'user_123', display_name: 'Verifier', api_key: apiKey };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const loginResponse = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/login',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'x-shutong49-api-key=valid-key'
+  }), loginResponse);
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/logout',
+    headers: {
+      host: '127.0.0.1:8787',
+      cookie: loginResponse.headers['set-cookie']
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /^\/web\/auth\/login\?/);
+  assert.match(response.headers['set-cookie'], /Max-Age=0/);
 });

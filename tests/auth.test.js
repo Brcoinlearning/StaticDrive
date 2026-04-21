@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createApiKeyAuth } from '../src/auth/api-key-auth.js';
+import { buildExpiredSessionCookie, buildSessionCookie, createSessionAuth, createSessionStore } from '../src/auth/session-auth.js';
 import { PocketBaseClient } from '../src/pocketbase/client.js';
 import { createResponseCapture } from './helpers.js';
 
@@ -398,4 +399,72 @@ test('PocketBaseClient lists share links, updates share link, and deletes conten
   assert.match(decodeURIComponent(calls[1].url), /content_id = "content_123"/);
   assert.equal(calls[2].options.method, 'PATCH');
   assert.equal(calls[3].options.method, 'DELETE');
+});
+
+
+test('apiKeyAuth can allow missing header without writing 401', async () => {
+  const auth = createApiKeyAuth({
+    apiKeyHeader: 'x-shutong49-api-key',
+    pocketbaseClient: {},
+    allowMissing: true
+  });
+
+  const response = createResponseCapture();
+  const context = await auth({ headers: {} }, response);
+
+  assert.equal(context, null);
+  assert.equal(response.statusCode, null);
+});
+
+test('session store creates, reads, and deletes session', async () => {
+  const store = createSessionStore();
+  const token = store.createSession({
+    user: { id: 'user_123', displayName: 'Verifier', apiKey: 'valid-key' },
+    apiKey: 'valid-key',
+    maxAgeMs: 60_000
+  });
+
+  const session = store.getSession(token);
+  assert.equal(session.user.id, 'user_123');
+  assert.equal(session.apiKey, 'valid-key');
+
+  store.deleteSession(token);
+  assert.equal(store.getSession(token), null);
+});
+
+test('session auth reads owner session from cookie header', async () => {
+  const store = createSessionStore();
+  const token = store.createSession({
+    user: { id: 'user_123', displayName: 'Verifier', apiKey: 'valid-key' },
+    apiKey: 'valid-key',
+    maxAgeMs: 60_000
+  });
+  const auth = createSessionAuth({
+    cookieName: 'shutong49_owner_session',
+    sessionStore: store
+  });
+
+  const context = await auth({
+    headers: {
+      cookie: 'shutong49_owner_session=' + token
+    }
+  });
+
+  assert.equal(context.user.id, 'user_123');
+  assert.equal(context.apiKey, 'valid-key');
+  assert.equal(context.sessionToken, token);
+});
+
+test('session cookie helpers build set-cookie values', async () => {
+  assert.match(buildSessionCookie({
+    cookieName: 'shutong49_owner_session',
+    token: 'token123',
+    maxAgeSeconds: 3600
+  }), /HttpOnly/);
+  assert.match(buildSessionCookie({
+    cookieName: 'shutong49_owner_session',
+    token: 'token123',
+    maxAgeSeconds: 3600
+  }), /Max-Age=3600/);
+  assert.match(buildExpiredSessionCookie('shutong49_owner_session'), /Max-Age=0/);
 });

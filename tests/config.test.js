@@ -13,6 +13,8 @@ test('loadConfig returns defaults with resolved workspace path', () => {
   assert.equal(config.servicePort, 8787);
   assert.equal(config.apiKeyHeader, 'x-shutong49-api-key');
   assert.equal(config.workspaceDir, '/tmp/shutong49/workspace');
+  assert.equal(config.ownerSessionCookieName, 'shutong49_owner_session');
+  assert.equal(config.ownerSessionMaxAgeSeconds, 43200);
 });
 
 test('loadConfig honors explicit env values', () => {
@@ -24,7 +26,9 @@ test('loadConfig honors explicit env values', () => {
     SERVICE_HOST: '0.0.0.0',
     SERVICE_PORT: '3001',
     API_KEY_HEADER: 'X-Custom-Key',
-    WORKSPACE_DIR: './custom-workspace'
+    WORKSPACE_DIR: './custom-workspace',
+    OWNER_SESSION_COOKIE_NAME: 'custom_owner_session',
+    OWNER_SESSION_MAX_AGE_SECONDS: '7200'
   }, '/srv/app');
 
   assert.equal(config.pocketbaseBaseUrl, 'http://127.0.0.1:9090');
@@ -35,6 +39,8 @@ test('loadConfig honors explicit env values', () => {
   assert.equal(config.apiKeyHeader, 'x-custom-key');
   assert.equal(config.workspaceDir, '/srv/app/custom-workspace');
   assert.equal(config.publicBaseUrl, 'https://example.com');
+  assert.equal(config.ownerSessionCookieName, 'custom_owner_session');
+  assert.equal(config.ownerSessionMaxAgeSeconds, 7200);
 });
 
 test('loadConfig resolves workspace inside current worktree root', () => {
