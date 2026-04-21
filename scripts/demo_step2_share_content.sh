@@ -18,6 +18,9 @@ HTML_SHARE_RESPONSE="$(curl -sS -X POST "$DEMO_SERVICE_BASE_URL/api/write/share"
   -H "$DEMO_API_HEADER: $DEMO_API_KEY" \
   -d "{\"contentId\":\"$HTML_CONTENT_ID\"}")"
 
+require_json_field "$PDF_SHARE_RESPONSE" "shareHash" "demo-step2:file-share"
+require_json_field "$HTML_SHARE_RESPONSE" "shareHash" "demo-step2:html-share"
+
 while IFS=$'\t' read -r key value; do
   printf -v "$key" '%s' "$value"
 done < <(

@@ -64,6 +64,14 @@ require_file() {
 require_command curl
 require_command node
 
+require_json_field() {
+  local json_payload="$1"
+  local field_name="$2"
+  local context_label="$3"
+
+  node -e "const payload=JSON.parse(process.argv[1]); const field=process.argv[2]; const label=process.argv[3]; if (payload && payload.error) { console.error('[' + label + '] ' + payload.error + ': ' + (payload.message || 'request failed')); process.exit(1); } const value = payload && payload[field]; if (typeof value !== 'string' || !value.trim()) { console.error('[' + label + '] missing required field: ' + field); console.error(JSON.stringify(payload)); process.exit(1); }"     "$json_payload" "$field_name" "$context_label" >/dev/null
+}
+
 require_http_ok() {
   local url="$1"
   local label="$2"

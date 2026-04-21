@@ -23,6 +23,11 @@ HTML_RESPONSE="$(curl -sS -X POST "$DEMO_SERVICE_BASE_URL/api/write/html" \
   -H "$DEMO_API_HEADER: $DEMO_API_KEY" \
   -d '{"title":"书童四九 HTML 样例","htmlContent":"<article><h1>静态网页服务演示</h1><p>这是人工演示的富文本样例。</p></article>"}')"
 
+require_json_field "$PDF_RESPONSE" "contentId" "demo-step1:file"
+require_json_field "$PDF_RESPONSE" "contentHash" "demo-step1:file"
+require_json_field "$HTML_RESPONSE" "contentId" "demo-step1:html"
+require_json_field "$HTML_RESPONSE" "contentHash" "demo-step1:html"
+
 while IFS=$'\t' read -r key value; do
   printf -v "$key" '%s' "$value"
 done < <(
