@@ -2,6 +2,11 @@
 
 本文档用于在当前已经跑通的 Docker 部署上，完成六个核心能力的首轮业务验收。
 
+文档定位：
+
+- 这是 Docker 形态下的业务验收文档，不是 VM 运维文档。
+- 如果你要看 P4 收口结论，请看 [p4-docker-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/p4-docker-acceptance-closeout.md)。
+
 ## 1. 适用前提
 
 你已经完成：

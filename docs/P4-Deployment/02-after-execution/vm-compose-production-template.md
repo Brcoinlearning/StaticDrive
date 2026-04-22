@@ -2,6 +2,12 @@
 
 本文档提供一套从“本机 Docker Desktop 已验证通过”迁移到“真实 Linux 虚拟机”的最小生产模板。
 
+文档定位：
+
+- 这是“新 VM 从零部署”的标准模板，不记录某一台机器的个性化事实。
+- 如果你只想要最短执行步骤，请看 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
+- 如果你要维护本次已经落地的 `ubu2404`，请看 [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)。
+
 配套模板文件位于：
 
 - `deploy/vm-compose/docker-compose.prod.yml`
@@ -64,9 +70,14 @@ OWNER_SESSION_MAX_AGE_SECONDS=43200
 cd /opt/static-content-service
 cp .env.docker.example .env
 vi .env
-APP_ENV_FILE=.env docker compose -p static-content-service --env-file .env build
-APP_ENV_FILE=.env docker compose -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d
+APP_ENV_FILE=.env docker compose --project-directory . -p static-content-service --env-file .env build
+APP_ENV_FILE=.env docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d
 ```
+
+注意：
+
+- `docker-compose.prod.yml` 位于 `deploy/vm-compose/` 子目录下，执行时必须显式带上 `--project-directory .`，否则 `./pocketbase/data`、`./workspace`、`./.env` 这类相对路径可能会错误地按 `deploy/vm-compose/` 解析。
+- VM 上统一只维护仓库根目录的 `.env`，不要再额外创建 `deploy/vm-compose/.env`，避免 Compose 与容器挂载读取到两份不同配置。
 
 ## 5. Nginx 挂载
 

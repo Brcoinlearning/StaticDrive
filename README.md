@@ -224,8 +224,8 @@ public 接口：
 
 ```bash
 cp .env.docker.example .env
-APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example build
-APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example up -d
+APP_ENV_FILE=.env.docker.example docker compose --project-directory . --env-file .env.docker.example build
+APP_ENV_FILE=.env.docker.example docker compose --project-directory . --env-file .env.docker.example up -d
 ```
 
 首次启动后：
@@ -238,11 +238,13 @@ APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example u
 常用命令：
 
 ```bash
-APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example ps
-APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example logs -f pocketbase
-APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example logs -f app
-APP_ENV_FILE=.env.docker.example docker compose --env-file .env.docker.example down
+APP_ENV_FILE=.env.docker.example docker compose --project-directory . --env-file .env.docker.example ps
+APP_ENV_FILE=.env.docker.example docker compose --project-directory . --env-file .env.docker.example logs -f pocketbase
+APP_ENV_FILE=.env.docker.example docker compose --project-directory . --env-file .env.docker.example logs -f app
+APP_ENV_FILE=.env.docker.example docker compose --project-directory . --env-file .env.docker.example down
 ```
+
+说明：如果使用 `deploy/vm-compose/docker-compose.prod.yml` 这类位于子目录的 compose 文件，务必显式添加 `--project-directory .`，避免 `./.env`、`./workspace`、`./pocketbase/data` 等相对路径被错误解析到子目录。
 
 更完整的说明见 [vm-and-docker-deployment-guide.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/01-before-execution/vm-and-docker-deployment-guide.md)。
 
@@ -255,6 +257,8 @@ Docker 六项核心能力验收见 [docker-six-capability-acceptance.md](/Users/
 Docker 部署收口记录见 [p4-docker-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/p4-docker-acceptance-closeout.md)。
 
 虚拟机上线最短执行清单见 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
+
+如果你需要继续维护已经落地的 `ubu2404` 机器，而不是从零部署新 VM，直接看 [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)。这份文档记录了当前真实运行状态、运维命令、配置修改方式，以及后续从 IP/HTTP 升级到域名/HTTPS 的顺序。
 
 ## MiniPC 部署建议
 

@@ -2,6 +2,11 @@
 
 本文档用于在本机 `Docker Desktop` 场景下完成首次启动、首次初始化和首轮验收，确保当前容器化部署不是“容器在跑”，而是“服务真的可用”。
 
+文档定位：
+
+- 这是本机 Docker 首次启动与初始化清单。
+- 如果你已经完成本机验证并准备上 Ubuntu VM，请转到 [vm-compose-production-template.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-compose-production-template.md)。
+
 ## 1. 前提条件
 
 需要满足：

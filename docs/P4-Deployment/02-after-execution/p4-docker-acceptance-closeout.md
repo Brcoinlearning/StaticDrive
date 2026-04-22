@@ -2,6 +2,12 @@
 
 本文档记录当前仓库在本机 `Docker Desktop` 环境下完成的部署与业务验收结果，作为从“可本地运行”进入“可迁移上线”的收口证据。
 
+文档定位：
+
+- 这是 P4 在本机 Docker 阶段的收口文档，回答“本机容器化基线是否已经成立”。
+- 如果你要上线新 VM，请继续看 [vm-compose-production-template.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-compose-production-template.md) 和 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
+- 如果你要维护已经落地的 `ubu2404`，请直接看 [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)。
+
 ## 1. 本轮目标
 
 本轮目标是确认：
@@ -107,3 +113,9 @@
 2. 在虚拟机上完成 `Nginx + HTTPS + systemd/compose` 接入。
 3. 在真实公网域名下再做一轮最小上线验收。
 4. 如后续有需要，再考虑自动初始化、备份策略和部署脚本进一步产品化。
+
+补充：在真实 VM 执行 `deploy/vm-compose/docker-compose.prod.yml` 时，后续已经确认需要额外遵守三条运行约束：
+
+1. 所有 `docker compose` 命令统一显式追加 `--project-directory .`，避免子目录 compose 文件把 `./workspace`、`./pocketbase/data`、`./.env` 解析到错误位置。
+2. 生产环境统一只维护仓库根目录 `.env`，不要额外创建 `deploy/vm-compose/.env`。
+3. 若所在网络拉取 Docker Hub 不稳定，应先完成 Docker registry mirror 配置，再执行首轮 `build` / `up`。

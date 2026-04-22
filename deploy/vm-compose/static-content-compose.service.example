@@ -8,8 +8,8 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=/opt/static-content-service
 RemainAfterExit=yes
-ExecStart=/usr/bin/env APP_ENV_FILE=.env docker compose -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d
-ExecStop=/usr/bin/env APP_ENV_FILE=.env docker compose -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml down
+ExecStart=/usr/bin/env APP_ENV_FILE=.env docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d
+ExecStop=/usr/bin/env APP_ENV_FILE=.env docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml down
 TimeoutStartSec=0
 
 [Install]
