@@ -138,6 +138,8 @@ sudo nginx -t
 5. owner 可写入内容
 6. public 可查看内容并下载文件
 
+如果当前只完成了 `/api/health`、`/web/auth/login`、`/web/public/list` 这类最小检查，则只能说明“部署链路已跑通”，还不能直接视为“全量业务功能验收已完成”。
+
 补充：如果你本轮先按“仅 IP、暂不绑定域名”的方式上线，可参考本次真实落地记录 [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)。其中包含：
 
 - 当前 IP/HTTP 形态下已经完成的内容
