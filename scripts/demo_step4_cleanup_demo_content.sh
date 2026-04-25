@@ -11,7 +11,7 @@ require_http_ok "$DEMO_SERVICE_BASE_URL/api/health" "business shell"
 curl -sS -X POST "$DEMO_SERVICE_BASE_URL/api/write/delete" \
   -H 'content-type: application/json' \
   -H "$DEMO_API_HEADER: $DEMO_API_KEY" \
-  -d "{\"contentId\":\"$PDF_CONTENT_ID\"}" >/dev/null
+  -d "{\"contentId\":\"$FILE_CONTENT_ID\"}" >/dev/null
 
 curl -sS -X POST "$DEMO_SERVICE_BASE_URL/api/write/delete" \
   -H 'content-type: application/json' \

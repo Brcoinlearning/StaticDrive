@@ -7,6 +7,7 @@
 - 这是 P4 的总体部署路线说明，用来回答“应该先做什么、后做什么”。
 - 如果你要在一台新 Ubuntu VM 上直接照着执行，请优先看 [vm-compose-production-template.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-compose-production-template.md) 和 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
 - 如果你要维护本次已经落地的 `ubu2404`，请直接看 [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)。
+- 如果你要复用本次“旧 VM 废弃后重建新 VM”的实战经验，请同时看 [vm-rebuild-lessons-learned.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-rebuild-lessons-learned.md)。
 
 ## 1. 当前建议
 

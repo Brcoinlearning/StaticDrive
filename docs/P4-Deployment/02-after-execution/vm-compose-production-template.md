@@ -7,6 +7,7 @@
 - 这是“新 VM 从零部署”的标准模板，不记录某一台机器的个性化事实。
 - 如果你只想要最短执行步骤，请看 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
 - 如果你要维护本次已经落地的 `ubu2404`，请看 [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)。
+- 如果你要避开这次重建 VM 时踩过的坑，请补看 [vm-rebuild-lessons-learned.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-rebuild-lessons-learned.md)。
 
 配套模板文件位于：
 
@@ -63,6 +64,7 @@ OWNER_SESSION_MAX_AGE_SECONDS=43200
 - Compose 内部通讯仍使用 `PB_BASE_URL=http://pocketbase:8090`
 - 宿主机映射通过 `docker-compose.prod.yml` 限制为 `127.0.0.1`
 - 对外真实访问地址由 `PUBLIC_BASE_URL` 决定
+- 若 `app` 需要被宿主机与 Nginx 正常访问，`SERVICE_HOST` 应保持为 `0.0.0.0`，不要改回 `127.0.0.1`
 
 ## 4. 首次部署命令
 
@@ -78,6 +80,7 @@ APP_ENV_FILE=.env docker compose --project-directory . -p static-content-service
 
 - `docker-compose.prod.yml` 位于 `deploy/vm-compose/` 子目录下，执行时必须显式带上 `--project-directory .`，否则 `./pocketbase/data`、`./workspace`、`./.env` 这类相对路径可能会错误地按 `deploy/vm-compose/` 解析。
 - VM 上统一只维护仓库根目录的 `.env`，不要再额外创建 `deploy/vm-compose/.env`，避免 Compose 与容器挂载读取到两份不同配置。
+- 在一台全新的 VM 上执行前，应先确认关键文件已完整同步，包括 `docker/`、`src/`、`pb_migrations/` 和 `.env.example`，不要只传部署子目录。
 
 ## 5. Nginx 挂载
 
@@ -137,6 +140,8 @@ sudo systemctl status static-content-compose
 3. `curl -I http://127.0.0.1`
 4. 浏览器访问 `https://content.example.com/web/auth/login`
 5. 浏览器访问 `https://content.example.com/web/public/list`
+
+补充：如果第 4、5 项中登录页可打开但 public list 返回 `500`，优先检查 PocketBase 管理员账号是否已在当前数据目录中初始化，并确认 `.env` 中的 `PB_ADMIN_EMAIL` / `PB_ADMIN_PASSWORD` 与之完全一致。
 
 ## 9. 当前模板定位
 

@@ -4,10 +4,14 @@
 
 本文档的定位不是模板，而是这次真实落地的运行事实与后续操作手册。
 
+补充说明：本文档描述的是历史上的 `ubu2404` 落地事实。若当前实际维护的是后续重建的新 VM，不应直接把本文中的机器名、IP 和磁盘状态当成当前事实，应同时参照 [vm-rebuild-lessons-learned.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-rebuild-lessons-learned.md)。
+
 关联文档：
 
 - 如果你要在另一台新 VM 上重做一遍，请优先看 [vm-compose-production-template.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-compose-production-template.md)。
 - 如果你只想看最短执行步骤，请看 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
+- 如果你要继续完成当前 `ubu2404` 的 owner/public/share/download 全量业务验收，请看 [vm-ubu2404-full-business-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-full-business-acceptance.md)。
+- 如果你遇到的是旧 VM 磁盘耗尽、镜像拉取不稳定、Nginx 配置被终端断行破坏等重建问题，请看 [vm-rebuild-lessons-learned.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-rebuild-lessons-learned.md)。
 
 ## 1. 本次完成了什么
 
@@ -386,6 +390,8 @@ curl -fsS http://192.168.2.2/api/health
 6. 当前用户若没有加入 Docker 组，直接执行 `docker compose` 会报 `permission denied while trying to connect to the Docker daemon socket`；可以先用 `sudo`，也可以后续补 `sudo usermod -aG docker ubuntu`。
 7. 用 `curl -I` 访问 `/web/auth/login`、`/web/public/list` 这类页面路由时，返回 `405 Method Not Allowed` 不代表页面坏了；因为这是 `HEAD` 请求，应用可能只实现了 `GET`。
 8. Nginx 配置若用 heredoc 写入，中途断开会导致配置文件残缺；应在 `sudo nginx -t` 通过后再 reload/restart。
+9. 若在新数据目录上重建 PocketBase，`.env` 中管理员账号并不会自动变成库里的真实账号；若 `app` 日志出现 `authenticate_admin` 失败，优先检查当前 PocketBase admin 是否已经初始化。
+10. 若 `/web/auth/login` 可打开而 `/web/public/list` 返回 `500`，不要先怪 Nginx；这通常说明反向代理已通，但 `app -> PocketBase admin auth` 仍未打通。
 
 ## 11. 当前结论
 

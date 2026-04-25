@@ -68,6 +68,8 @@
   [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)
 - 本次 `ubu2404` 的真实运行与运维手册：
   [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)
+- `ubu2404` 当前 IP/HTTP 阶段的全量业务验收执行单：
+  [vm-ubu2404-full-business-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-full-business-acceptance.md)
 - 本机 Docker 首启与初始化检查：
   [docker-first-start-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-first-start-checklist.md)
 - 本机 Docker 六项能力验收：
