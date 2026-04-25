@@ -1,5 +1,7 @@
 # VM ubu2404 IP/HTTP Deployment Closeout
 
+> 归档说明：本文档只保留为历史落地记录，不再作为当前 P4 的默认执行入口。当前真实验收基线请优先看 [vm-accept-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-accept-acceptance-closeout.md) 与 [linux-vm-deployment-playbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/linux-vm-deployment-playbook.md)。
+
 本文档记录本次在 Ubuntu `24.04` 虚拟机 `ubu2404` 上完成的真实部署结果，覆盖当前已完成状态、后续日常运维方式、配置更新方法、升级到域名 HTTPS 的迁移路径，以及排障时应优先检查的点。
 
 本文档的定位不是模板，而是这次真实落地的运行事实与后续操作手册。

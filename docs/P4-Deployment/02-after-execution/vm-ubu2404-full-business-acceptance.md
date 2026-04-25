@@ -1,5 +1,7 @@
 # VM ubu2404 Full Business Acceptance
 
+> 归档说明：本文档只保留为 `ubu2404` 阶段的历史业务验收执行单，不再作为当前 P4 的默认执行单。当前真实验收基线请优先看 [vm-accept-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-accept-acceptance-closeout.md) 与 [linux-vm-deployment-playbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/linux-vm-deployment-playbook.md)。
+
 本文档用于承接 `ubu2404` 当前“IP + HTTP”阶段的下一步工作：基于 `http://192.168.2.2` 完成全量业务验收，并把结果沉淀为正式记录。
 
 文档定位：

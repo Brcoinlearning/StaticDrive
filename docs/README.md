@@ -58,24 +58,46 @@
 - `docs/P4-Deployment/02-after-execution/`
   P4 执行后的 Docker 首启检查单、VM Compose 生产模板与部署收口文档。
 
-建议按下面顺序阅读：
+建议按下面顺序阅读。
+
+当前标准入口：
+
+- 如果你的目标是“部署到一台新的 Linux 机器”，默认先看：
+  [linux-vm-deployment-playbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/linux-vm-deployment-playbook.md)
 
 - 总体部署策略与路线：
   [vm-and-docker-deployment-guide.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/01-before-execution/vm-and-docker-deployment-guide.md)
+- 新 Linux 机器的可重复部署范式：
+  [linux-vm-deployment-playbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/linux-vm-deployment-playbook.md)
 - 新 VM 的标准生产模板：
   [vm-compose-production-template.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-compose-production-template.md)
 - 实际上线时的最短操作清单：
   [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)
-- 本次 `ubu2404` 的真实运行与运维手册：
-  [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)
-- `ubu2404` 当前 IP/HTTP 阶段的全量业务验收执行单：
-  [vm-ubu2404-full-business-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-full-business-acceptance.md)
+
+当前真实结果：
+
+- 新 VM `vm-accept` 的实际收口结果：
+  [vm-accept-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-accept-acceptance-closeout.md)
+- 新 VM `vm-accept` 的执行说明与收尾约束：
+  [vm-accept-current-execution-note.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-accept-current-execution-note.md)
+- 本次重建 VM 的复盘与坑位记录：
+  [vm-rebuild-lessons-learned.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-rebuild-lessons-learned.md)
+
+Docker 基线：
+
 - 本机 Docker 首启与初始化检查：
   [docker-first-start-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-first-start-checklist.md)
 - 本机 Docker 六项能力验收：
   [docker-six-capability-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-six-capability-acceptance.md)
-- P4 阶段收口结论：
+- P4 Docker 阶段收口结论：
   [p4-docker-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/p4-docker-acceptance-closeout.md)
+
+历史归档：
+
+- `ubu2404` 的历史运行与运维手册：
+  [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)
+- `ubu2404` 的历史业务验收执行单：
+  [vm-ubu2404-full-business-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-full-business-acceptance.md)
 
 ## 5. Reference
 
