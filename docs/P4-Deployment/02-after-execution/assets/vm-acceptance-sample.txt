@@ -1,0 +1,3 @@
+VM acceptance sample file.
+This file is used by scripts/vm_demo_step1_write_and_share.sh to verify file upload, public access, share access, and download through the VM HTTP entrypoint.
+
