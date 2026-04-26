@@ -362,6 +362,7 @@ test('query/list returns owner-scoped content summaries', async () => {
     accessUrl: 'http://127.0.0.1:8787/api/public/content/abcd1234abcd1234abcd1234abcd1234',
     mimeType: 'application/pdf',
     fileSize: 1024,
+    localFileExists: false,
     isShared: false,
     createdAt: '2026-04-18 10:00:00.000Z',
     updatedAt: '2026-04-18 10:00:00.000Z'
@@ -407,8 +408,82 @@ test('query/list returns empty items for owner with no content', async () => {
     page: 1,
     perPage: 20,
     totalItems: 0,
-    totalPages: 0
+    totalPages: 0,
+    missingLocalFileOnly: false
   });
+});
+
+test('query/list can filter to missing local files only', async () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-query-missing-only-'));
+  fs.mkdirSync(path.join(workspaceDir, 'content-files', 'aa'), { recursive: true });
+  fs.writeFileSync(path.join(workspaceDir, 'content-files', 'aa', 'present.txt'), 'ok');
+
+  const app = createApp(createConfig(workspaceDir), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async listContents({ ownerUserId, page, perPage, search }) {
+        assert.equal(ownerUserId, 'user_123');
+        assert.equal(page, 1);
+        assert.equal(perPage, 20);
+        assert.equal(search, '');
+        return {
+          page: 1,
+          perPage: 20,
+          totalItems: 2,
+          totalPages: 1,
+          items: [{
+            id: 'content_present',
+            owner_user_id: 'user_123',
+            type: 'file',
+            title: 'Present',
+            original_filename: 'present.txt',
+            content_hash: '11111111111111111111111111111111',
+            storage_path: 'aa/present.txt',
+            mime_type: 'text/plain',
+            file_size: 2,
+            html_content: '',
+            is_shared: false,
+            created: '2026-04-18 10:00:00.000Z',
+            updated: '2026-04-18 10:00:00.000Z'
+          }, {
+            id: 'content_missing',
+            owner_user_id: 'user_123',
+            type: 'file',
+            title: 'Missing',
+            original_filename: 'missing.txt',
+            content_hash: '22222222222222222222222222222222',
+            storage_path: 'aa/missing.txt',
+            mime_type: 'text/plain',
+            file_size: 7,
+            html_content: '',
+            is_shared: false,
+            created: '2026-04-18 10:00:00.000Z',
+            updated: '2026-04-18 10:00:00.000Z'
+          }]
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/api/query/list?missingLocalFileOnly=1',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.items.length, 1);
+  assert.equal(response.body.items[0].contentId, 'content_missing');
+  assert.equal(response.body.items[0].localFileExists, false);
 });
 
 test('query/search returns owner-scoped matches and paging shape', async () => {
@@ -748,6 +823,57 @@ test('web/list renders owner content list page with action-oriented layout', asy
   assert.match(response.rawBody, /打开公开页/);
 });
 
+test('web/list marks owner file records whose local file is missing', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-list-missing-file'), {
+    contentService: {
+      async listContents() {
+        return {
+          page: 1,
+          perPage: 20,
+          totalItems: 1,
+          totalPages: 1,
+          items: [{
+            contentId: 'content_missing_file_1',
+            type: 'file',
+            title: '缺失文件',
+            originalFilename: 'missing.txt',
+            contentHash: 'feedfeedfeedfeedfeedfeedfeedfeed',
+            accessUrl: 'http://127.0.0.1:8787/api/public/content/feedfeedfeedfeedfeedfeedfeedfeed',
+            mimeType: 'text/plain',
+            fileSize: 12,
+            localFileExists: false,
+            isShared: false,
+            createdAt: '2026-04-18 14:00:00.000Z',
+            updatedAt: '2026-04-18 14:00:00.000Z'
+          }]
+        };
+      }
+    },
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/list',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /本地文件缺失/);
+  assert.match(response.rawBody, /请重新上传或删除该记录/);
+});
+
 test('web/list renders success flash from redirect params', async () => {
   const app = createApp(createConfig('/tmp/shutong49-web-list-flash'), {
     pocketbaseClient: {
@@ -782,6 +908,59 @@ test('web/list renders success flash from redirect params', async () => {
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /已完成/);
   assert.match(response.rawBody, /删除完成/);
+});
+
+test('web/list exposes missing local file filter and batch cleanup action', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-list-filter-controls'), {
+    contentService: {
+      async listContents() {
+        return {
+          page: 1,
+          perPage: 20,
+          totalItems: 1,
+          totalPages: 1,
+          items: [{
+            contentId: 'content_missing_file_filter',
+            type: 'file',
+            title: '缺失文件',
+            originalFilename: 'missing.txt',
+            contentHash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            accessUrl: 'http://127.0.0.1:8787/api/public/content/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            mimeType: 'text/plain',
+            fileSize: 12,
+            localFileExists: false,
+            isShared: false,
+            createdAt: '2026-04-18 14:00:00.000Z',
+            updatedAt: '2026-04-18 14:00:00.000Z'
+          }]
+        };
+      }
+    },
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/list?missingLocalFileOnly=1',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /name="missingLocalFileOnly"/);
+  assert.match(response.rawBody, /仅看缺失本地文件/);
+  assert.match(response.rawBody, /value="cleanup_missing_file_records"/);
+  assert.match(response.rawBody, /清理缺失文件记录/);
 });
 
 test('web public list renders shared content discovery page', async () => {
@@ -920,6 +1099,53 @@ test('web/detail renders rich text in sandboxed iframe and owner action panel', 
   assert.match(response.rawBody, /srcdoc="&lt;script&gt;alert\(1\)&lt;\/script&gt;&lt;h1&gt;Hello&lt;\/h1&gt;"/);
   assert.match(response.rawBody, /Owner 操作/);
   assert.match(response.rawBody, /action="\/web\/action\/share\/revoke"/);
+});
+
+test('web/detail shows missing local file status for broken owner file records', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-detail-missing-file'), {
+    contentService: {
+      async getContentDetail() {
+        return {
+          contentId: 'content_missing_file_detail',
+          type: 'file',
+          title: 'Broken File',
+          originalFilename: 'broken.txt',
+          contentHash: 'deadbeefdeadbeefdeadbeefdeadbeef',
+          accessUrl: 'http://127.0.0.1:8787/api/public/content/deadbeefdeadbeefdeadbeefdeadbeef',
+          mimeType: 'text/plain',
+          fileSize: 9,
+          localFileExists: false,
+          ownerUserId: 'user_123',
+          storagePath: 'de/deadbeefdeadbeefdeadbeefdeadbeef-broken.txt',
+          htmlContent: '',
+          isShared: false
+        };
+      }
+    },
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/detail/content_missing_file_detail',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /本地文件状态/);
+  assert.match(response.rawBody, /本地文件缺失/);
+  assert.match(response.rawBody, /请重新上传或删除该记录/);
 });
 
 test('web owner share action redirects back to detail with success flash', async () => {
@@ -1606,6 +1832,48 @@ test('web owner batch action redirects back to list with success flash', async (
   assert.deepEqual(sharedIds, ['item_1', 'item_2']);
 });
 
+test('web owner batch cleanup action redirects back with cleanup success flash', async () => {
+  const deletedIds = [];
+  const app = createApp(createConfig('/tmp/shutong49-web-action-batch-cleanup'), {
+    contentService: {
+      async batchOperateContents({ action, contentIds }) {
+        assert.equal(action, 'cleanup_missing_file_records');
+        deletedIds.push(...contentIds);
+        return {
+          action,
+          totalCount: 2,
+          succeededCount: 2,
+          results: []
+        };
+      }
+    },
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/action/batch',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'batchAction=cleanup_missing_file_records&contentIds=item_m1&contentIds=item_m2'
+  }), response);
+
+  assert.deepEqual(deletedIds, ['item_m1', 'item_m2']);
+  assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /title=%E6%B8%85%E7%90%86%E5%B7%B2%E5%AE%8C%E6%88%90/);
+});
+
 test('write/update updates rich text content fields', async () => {
   const updates = [];
   const app = createApp(createConfig('/tmp/shutong49-write-update'), {
@@ -1783,6 +2051,84 @@ test('write/batch shares multiple owned contents', async () => {
   assert.equal(response.body.totalCount, 2);
   assert.equal(response.body.succeededCount, 2);
   assert.deepEqual(sharedIds, ['batch_1', 'batch_2']);
+});
+
+test('write/batch cleanup deletes only missing local file records', async () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-write-batch-cleanup-'));
+  fs.mkdirSync(path.join(workspaceDir, 'content-files', 'aa'), { recursive: true });
+  fs.writeFileSync(path.join(workspaceDir, 'content-files', 'aa', 'present.txt'), 'ok');
+
+  const deletedIds = [];
+  const app = createApp(createConfig(workspaceDir), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById(contentId) {
+        if (contentId === 'missing_1') {
+          return {
+            id: 'missing_1',
+            owner_user_id: 'user_123',
+            type: 'file',
+            title: 'Missing One',
+            original_filename: 'missing-1.txt',
+            content_hash: '33333333333333333333333333333333',
+            storage_path: 'aa/missing-1.txt',
+            mime_type: 'text/plain',
+            file_size: 5,
+            html_content: '',
+            is_shared: false
+          };
+        }
+
+        if (contentId === 'present_1') {
+          return {
+            id: 'present_1',
+            owner_user_id: 'user_123',
+            type: 'file',
+            title: 'Present One',
+            original_filename: 'present.txt',
+            content_hash: '44444444444444444444444444444444',
+            storage_path: 'aa/present.txt',
+            mime_type: 'text/plain',
+            file_size: 2,
+            html_content: '',
+            is_shared: false
+          };
+        }
+
+        throw new Error('unexpected content id');
+      },
+      async listShareLinksByContentId() {
+        return [];
+      },
+      async deleteContent(contentId) {
+        deletedIds.push(contentId);
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/batch',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      action: 'cleanup_missing_file_records',
+      contentIds: ['missing_1', 'present_1']
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(deletedIds, ['missing_1']);
+  assert.equal(response.body.succeededCount, 1);
+  assert.equal(response.body.results[0].contentId, 'missing_1');
 });
 
 

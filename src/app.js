@@ -432,7 +432,8 @@ export function createApp(config, dependencies = {}) {
           const result = await contentService.listContents({
             ownerUserId: authContext.user.id,
             page: url.searchParams.get('page'),
-            perPage: url.searchParams.get('perPage')
+            perPage: url.searchParams.get('perPage'),
+            missingLocalFileOnly: url.searchParams.get('missingLocalFileOnly')
           });
 
           result.flash = buildFlashFromParams(url.searchParams);
@@ -445,7 +446,8 @@ export function createApp(config, dependencies = {}) {
             ownerUserId: authContext.user.id,
             q: url.searchParams.get('q'),
             page: url.searchParams.get('page'),
-            perPage: url.searchParams.get('perPage')
+            perPage: url.searchParams.get('perPage'),
+            missingLocalFileOnly: url.searchParams.get('missingLocalFileOnly')
           });
 
           result.flash = buildFlashFromParams(url.searchParams);
@@ -514,11 +516,19 @@ export function createApp(config, dependencies = {}) {
             action,
             contentIds
           });
-          const actionLabel = action === 'share' ? '批量分享' : action === 'share_revoke' ? '批量撤销分享' : '批量删除';
+          const actionLabel = action === 'share'
+            ? '批量分享'
+            : action === 'share_revoke'
+              ? '批量撤销分享'
+              : action === 'cleanup_missing_file_records'
+                ? '清理'
+                : '批量删除';
           redirect(response, buildRedirectUrl('/web/list', {
             tone: 'success',
-            title: actionLabel + '已完成',
-            message: '已完成 ' + result.succeededCount + ' 条内容的' + actionLabel + '。'
+            title: action === 'cleanup_missing_file_records' ? '清理已完成' : actionLabel + '已完成',
+            message: action === 'cleanup_missing_file_records'
+              ? '已清理 ' + result.succeededCount + ' 条缺失本地文件记录。'
+              : '已完成 ' + result.succeededCount + ' 条内容的' + actionLabel + '。'
           }));
           return;
         }
@@ -713,7 +723,8 @@ export function createApp(config, dependencies = {}) {
           const result = await contentService.listContents({
             ownerUserId: authContext.user.id,
             page: url.searchParams.get('page'),
-            perPage: url.searchParams.get('perPage')
+            perPage: url.searchParams.get('perPage'),
+            missingLocalFileOnly: url.searchParams.get('missingLocalFileOnly')
           });
 
           json(response, 200, result);
@@ -725,7 +736,8 @@ export function createApp(config, dependencies = {}) {
             ownerUserId: authContext.user.id,
             q: url.searchParams.get('q'),
             page: url.searchParams.get('page'),
-            perPage: url.searchParams.get('perPage')
+            perPage: url.searchParams.get('perPage'),
+            missingLocalFileOnly: url.searchParams.get('missingLocalFileOnly')
           });
 
           json(response, 200, result);

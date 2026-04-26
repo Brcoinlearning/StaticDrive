@@ -79,6 +79,10 @@ function normalizePositiveInteger(value, fallback) {
   return parsed;
 }
 
+function normalizeBooleanFlag(value) {
+  return value === true || value === '1' || value === 'true' || value === 'on';
+}
+
 function buildContentSummary(config, record) {
   return {
     contentId: record.id,
@@ -89,6 +93,7 @@ function buildContentSummary(config, record) {
     accessUrl: buildAccessUrl(config, record.content_hash),
     mimeType: record.mime_type,
     fileSize: record.file_size,
+    localFileExists: record.type === 'file' ? record.local_file_exists !== false : true,
     isShared: record.is_shared,
     createdAt: record.created,
     updatedAt: record.updated
@@ -177,6 +182,40 @@ async function createContentWithRetry(createRecord) {
   }
 
   throw new Error('Unable to generate unique content hash.');
+}
+
+async function withLocalFileState(fsImpl, storageRoot, record) {
+  if (!record || record.type !== 'file') {
+    return {
+      ...record,
+      local_file_exists: true
+    };
+  }
+
+  const storagePath = typeof record.storage_path === 'string' ? record.storage_path.trim() : '';
+  if (!storagePath) {
+    return {
+      ...record,
+      local_file_exists: false
+    };
+  }
+
+  try {
+    await fsImpl.access(path.join(storageRoot, storagePath));
+    return {
+      ...record,
+      local_file_exists: true
+    };
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return {
+        ...record,
+        local_file_exists: false
+      };
+    }
+
+    throw error;
+  }
 }
 
 async function ensureDirectory(dirPath) {
@@ -365,9 +404,10 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
     };
   }
 
-  async function listContents({ ownerUserId, page, perPage }) {
+  async function listContents({ ownerUserId, page, perPage, missingLocalFileOnly }) {
     const normalizedPage = normalizePositiveInteger(page, 1);
     const normalizedPerPage = normalizePositiveInteger(perPage, 20);
+    const missingOnly = normalizeBooleanFlag(missingLocalFileOnly);
     const payload = await pocketbaseClient.listContents({
       ownerUserId,
       page: normalizedPage,
@@ -375,19 +415,27 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
       search: ''
     });
 
+    const items = await Promise.all((payload.items ?? []).map((record) => withLocalFileState(fsImpl, storageRoot, record)));
+
+    const visibleItems = missingOnly
+      ? items.filter((record) => record.type === 'file' && record.local_file_exists === false)
+      : items;
+
     return {
-      items: (payload.items ?? []).map((record) => buildContentSummary(config, record)),
+      items: visibleItems.map((record) => buildContentSummary(config, record)),
       page: payload.page ?? normalizedPage,
       perPage: payload.perPage ?? normalizedPerPage,
-      totalItems: payload.totalItems ?? 0,
-      totalPages: payload.totalPages ?? 0
+      totalItems: missingOnly ? visibleItems.length : (payload.totalItems ?? 0),
+      totalPages: missingOnly ? (visibleItems.length > 0 ? 1 : 0) : (payload.totalPages ?? 0),
+      missingLocalFileOnly: missingOnly
     };
   }
 
-  async function searchContents({ ownerUserId, q, page, perPage }) {
+  async function searchContents({ ownerUserId, q, page, perPage, missingLocalFileOnly }) {
     const normalizedQuery = normalizeSearch(q);
     const normalizedPage = normalizePositiveInteger(page, 1);
     const normalizedPerPage = normalizePositiveInteger(perPage, 20);
+    const missingOnly = normalizeBooleanFlag(missingLocalFileOnly);
     const payload = await pocketbaseClient.listContents({
       ownerUserId,
       page: normalizedPage,
@@ -395,18 +443,26 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
       search: normalizedQuery
     });
 
+    const items = await Promise.all((payload.items ?? []).map((record) => withLocalFileState(fsImpl, storageRoot, record)));
+
+    const visibleItems = missingOnly
+      ? items.filter((record) => record.type === 'file' && record.local_file_exists === false)
+      : items;
+
     return {
       query: normalizedQuery,
-      items: (payload.items ?? []).map((record) => buildContentSummary(config, record)),
+      items: visibleItems.map((record) => buildContentSummary(config, record)),
       page: payload.page ?? normalizedPage,
       perPage: payload.perPage ?? normalizedPerPage,
-      totalItems: payload.totalItems ?? 0,
-      totalPages: payload.totalPages ?? 0
+      totalItems: missingOnly ? visibleItems.length : (payload.totalItems ?? 0),
+      totalPages: missingOnly ? (visibleItems.length > 0 ? 1 : 0) : (payload.totalPages ?? 0),
+      missingLocalFileOnly: missingOnly
     };
   }
 
   async function getContentDetail({ ownerUserId, contentId }) {
-    const record = await ensureOwnedContent(ownerUserId, contentId);
+    const ownedRecord = await ensureOwnedContent(ownerUserId, contentId);
+    const record = await withLocalFileState(fsImpl, storageRoot, ownedRecord);
     return buildContentDetail(config, record);
   }
 
@@ -557,7 +613,7 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
     const normalizedAction = typeof action === 'string' ? action.trim() : '';
     const normalizedContentIds = normalizeBatchContentIds(contentIds);
 
-    if (!['share', 'share_revoke', 'delete'].includes(normalizedAction)) {
+    if (!['share', 'share_revoke', 'delete', 'cleanup_missing_file_records'].includes(normalizedAction)) {
       const error = new Error('Unsupported batch action.');
       error.statusCode = 400;
       error.code = 'invalid_batch_payload';
@@ -586,6 +642,24 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
           status: 'success',
           revoked: result.revoked,
           shareHash: result.shareHash
+        });
+        continue;
+      }
+
+      if (normalizedAction === 'cleanup_missing_file_records') {
+        const ownedRecord = await ensureOwnedContent(ownerUserId, contentId);
+        const record = await withLocalFileState(fsImpl, storageRoot, ownedRecord);
+        if (record.type !== 'file' || record.local_file_exists !== false) {
+          continue;
+        }
+
+        const result = await deleteContent({ ownerUserId, contentId });
+        results.push({
+          contentId,
+          action: normalizedAction,
+          status: 'success',
+          deleted: result.deleted,
+          removedFile: result.removedFile
         });
         continue;
       }

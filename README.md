@@ -16,6 +16,8 @@
 完整入口索引见 [docs/README.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/README.md)。
 
 
+- `docs/Operations/`：通用运行与运维文档，覆盖本机运行、VM 运行、代码变更后的同步与重启规则
+
 - `docs/P1-MVP/01-before-execution/`：P1 开始前的正式产物，如需求、技术选型、架构、任务拆解、测试契约
 - `docs/P1-MVP/02-after-execution/`：P1 执行后的联调、验收、演示与结果文档
 - `docs/P2-Stabilization/01-before-execution/`：P2 稳定化阶段开始前的范围、架构、任务与路线图文档

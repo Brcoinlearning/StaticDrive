@@ -540,17 +540,20 @@ function renderFlash(flash) {
   return `<section class="flash ${tone}"><strong>${escapeHtml(flash.title || '操作已完成')}</strong><span>${escapeHtml(flash.message)}</span></section>`;
 }
 
-function renderToolbar({ totalItems, page, query, backHref = '/web/list', backLabel = '返回全部内容' }) {
+function renderToolbar({ totalItems, page, query, missingLocalFileOnly = false, backHref = '/web/list', backLabel = '返回全部内容' }) {
   const summary = query
     ? `搜索“${query}”命中 ${totalItems} 条内容，第 ${page} 页。`
     : `当前共 ${totalItems} 条内容，第 ${page} 页。`;
+  const filterForm = backHref === '/web/list'
+    ? `<form method="get" action="/web/list" class="inline-form"><label><input type="checkbox" name="missingLocalFileOnly" value="1"${missingLocalFileOnly ? ' checked' : ''}> 仅看缺失本地文件</label><button type="submit" class="secondary">应用筛选</button></form>`
+    : '';
 
   return `<section class="toolbar">
     <div>
       <strong>内容总览</strong>
       <div class="muted">${escapeHtml(summary)}</div>
     </div>
-    <a class="btn secondary" href="${escapeHtml(backHref)}">${escapeHtml(backLabel)}</a>
+    <div class="action-row">${filterForm}<a class="btn secondary" href="${escapeHtml(backHref)}">${escapeHtml(backLabel)}</a></div>
   </section>`;
 }
 
@@ -568,6 +571,7 @@ function renderBatchPanel(items) {
           <option value="share">批量分享</option>
           <option value="share_revoke">批量撤销分享</option>
           <option value="delete">批量删除</option>
+          <option value="cleanup_missing_file_records">清理缺失文件记录</option>
         </select>
       </div>
       <div class="field-stack">
@@ -610,6 +614,9 @@ function renderItemCard(item) {
   const sharedBadge = item.isShared
     ? '<span class="badge shared">已公开</span>'
     : '<span class="badge private">未公开</span>';
+  const localFileWarning = item.type === 'file' && item.localFileExists === false
+    ? '<p><strong>本地文件缺失</strong>，请重新上传或删除该记录。</p>'
+    : '';
   const filenameLine = item.originalFilename
     ? `<p>源文件：${escapeHtml(item.originalFilename)}</p>`
     : '<p>富文本内容，无原始文件。</p>';
@@ -622,6 +629,7 @@ function renderItemCard(item) {
       </div>
     </div>
     ${filenameLine}
+    ${localFileWarning}
     <div class="meta">
       <span>内容 ID：${escapeHtml(item.contentId)}</span>
       <span>MIME：${escapeHtml(item.mimeType || '-')}</span>
@@ -721,7 +729,7 @@ export function renderOwnerListPage(payload) {
     heading: 'Owner 内容列表',
     description: '这里是 owner 侧的主入口。你可以浏览已写入内容、确认公开状态，并进入详情页继续执行分享、撤销分享、更新或删除。',
     mode: 'owner',
-    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page })}${renderOwnerTopbarLinks()}${renderBatchPanel(payload.items)}${cards}`
+    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${renderOwnerTopbarLinks()}${renderBatchPanel(payload.items)}${cards}`
   });
 }
 
@@ -736,7 +744,7 @@ export function renderOwnerSearchPage(payload) {
     description: payload.query ? `当前展示与“${payload.query}”相关的 owner 内容。` : '未提供关键词，显示默认结果。',
     mode: 'owner',
     query: payload.query,
-    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, backHref: '/web/list' })}${renderOwnerTopbarLinks()}${renderBatchPanel(payload.items)}${cards}`
+    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, missingLocalFileOnly: payload.missingLocalFileOnly, backHref: '/web/list' })}${renderOwnerTopbarLinks()}${renderBatchPanel(payload.items)}${cards}`
   });
 }
 
@@ -774,7 +782,7 @@ export function renderPublicSearchPage(payload) {
 export function renderOwnerDetailPage(detail) {
   const contentBlock = detail.type === 'rich_text'
     ? `<section class="panel preview-shell"><h3>HTML 预览</h3><iframe class="preview" sandbox="" srcdoc="${escapeHtml(detail.htmlContent)}"></iframe></section>`
-    : `<section class="panel"><h3>文件交付信息</h3><div class="meta-grid"><div><strong>文件名</strong><span>${escapeHtml(detail.originalFilename || '未提供')}</span></div><div><strong>MIME</strong><span>${escapeHtml(detail.mimeType || '-')}</span></div><div><strong>大小</strong><span>${escapeHtml(formatFileSize(detail.fileSize))}</span></div><div><strong>文件访问</strong>${detail.isShared ? `<a class="supporting-link" href="/web/public/content/${encodeURIComponent(detail.contentHash)}">打开公开下载页</a>` : '<span class="muted">未分享，无法公开下载。</span>'}</div></div></section>`;
+    : `<section class="panel"><h3>文件交付信息</h3><div class="meta-grid"><div><strong>文件名</strong><span>${escapeHtml(detail.originalFilename || '未提供')}</span></div><div><strong>MIME</strong><span>${escapeHtml(detail.mimeType || '-')}</span></div><div><strong>大小</strong><span>${escapeHtml(formatFileSize(detail.fileSize))}</span></div><div><strong>本地文件状态</strong><span>${escapeHtml(detail.localFileExists === false ? '本地文件缺失' : '文件存在')}</span></div><div><strong>文件访问</strong>${detail.isShared ? `<a class="supporting-link" href="/web/public/content/${encodeURIComponent(detail.contentHash)}">打开公开下载页</a>` : '<span class="muted">未分享，无法公开下载。</span>'}</div></div>${detail.localFileExists === false ? '<p class="subtle-note">请重新上传或删除该记录，否则数据库记录与物理文件将持续不一致。</p>' : ''}</section>`;
 
   return renderLayout({
     title: detail.title || detail.originalFilename || 'Owner 内容详情',

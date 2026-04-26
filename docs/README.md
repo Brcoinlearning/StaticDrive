@@ -1,105 +1,33 @@
 # Docs Index
 
-当前文档目录按 Phase 组织，而不是按“写作时间”组织。
+本文档是当前仓库 `docs/` 目录的总入口，优先把“长期有效、反复会用到”的文档放在前面，把阶段性过程文档放在后面。
 
-## 1. P1-MVP
+## 1. 通用运行与运维
 
-- `docs/P1-MVP/01-before-execution/`
-  P1 开始前的正式准备文档：需求、技术选型、架构、任务、测试契约。
-- `docs/P1-MVP/02-after-execution/`
-  P1 执行后的联调、演示、验收与结果文档。
+- [local-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/local-runtime-handbook.md)：本机运行手册，覆盖本地启动、重启、常用地址、常用检查命令。
+- [vm-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/vm-runtime-handbook.md)：虚拟机运行手册，覆盖 VM 上的代码位置、Compose/Nginx/systemd 常用操作、常用检查命令。
+- [code-change-sync-and-restart.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/code-change-sync-and-restart.md)：代码变更后的同步、重启与验证规则，解决“改了哪里、要不要重启什么、VM 怎么同步”的日常问题。
+- [routes-and-urls-cheatsheet.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/routes-and-urls-cheatsheet.md)：常用接口、页面地址与典型入口速查表。
+- [data-and-storage-operations.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/data-and-storage-operations.md)：数据目录、文件目录、清理、备份与恢复说明。
+- [release-and-commit-playbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/release-and-commit-playbook.md)：本地改动、验证、提交流程、同步到 VM 与最小发布验收清单。
+- [troubleshooting-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/troubleshooting-handbook.md)：常见故障现象与固定排查顺序。
 
-重点入口：
+## 2. 核心理解文档
 
-- [20-architecture.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/01-before-execution/20-architecture.md)
-- [20-tasks.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/01-before-execution/20-tasks.md)
-- [mvp-integration-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/02-after-execution/mvp-integration-verification.md)
-- [MVP演示.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/02-after-execution/MVP演示.md)
+- [core-business-flow.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/core-business-flow.md)：核心业务链路图，说明业务壳、PocketBase、本地文件系统、网页层的职责关系。
 
-## 2. P2-Stabilization
+## 3. 阶段性正式文档
 
-- `docs/P2-Stabilization/01-before-execution/`
-  P2 稳定化阶段的范围、冻结结论、架构、任务和路线图。
-- `docs/P2-Stabilization/02-after-execution/`
-  P2 执行后的验证、诊断、冷启动与收口文档。
+- `docs/P1-MVP/`：MVP 阶段的需求、技术选型、架构、任务拆解、测试契约、联调与验收文档。
+- `docs/P2-Stabilization/`：稳定化阶段的范围、诊断、冷启动与收口文档。
+- `docs/P3-Owner-Frontend/`：owner 网页层产品化相关的准备文档与手工检查文档。
+- `docs/P4-Deployment/`：部署、Docker、虚拟机、Nginx、systemd、上线与验收相关文档。
 
-重点入口：
+## 4. 使用建议
 
-- [phase-2-architecture.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P2-Stabilization/01-before-execution/phase-2-architecture.md)
-- [phase-2-tasks.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P2-Stabilization/01-before-execution/phase-2-tasks.md)
-- [p2-t7-phase-2-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P2-Stabilization/02-after-execution/p2-t7-phase-2-closeout.md)
+如果你当前的目标是：
 
-## 3. P3-Owner-Frontend
-
-- `docs/P3-Owner-Frontend/01-before-execution/`
-  P3 owner 产品化前端阶段的准备文档。
-- `docs/P3-Owner-Frontend/02-after-execution/`
-  P3 执行后的人工验收、结果记录与后续收口文档。
-
-重点入口：
-
-- [phase-3-architecture.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/01-before-execution/phase-3-architecture.md)
-- [phase-3-tasks.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/01-before-execution/phase-3-tasks.md)
-- [p3-t2-owner-frontend-manual-check.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t2-owner-frontend-manual-check.md)
-- [p3-t2-owner-frontend-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t2-owner-frontend-closeout.md)
-- [p3-t3-content-mutation-manual-check.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t3-content-mutation-manual-check.md)
-- [p3-t3-content-mutation-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t3-content-mutation-closeout.md)
-- [p3-t4-owner-credential-manual-check.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t4-owner-credential-manual-check.md)
-- [p3-t4-owner-credential-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t4-owner-credential-closeout.md)
-- [p3-t5-browser-e2e-manual-check.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t5-browser-e2e-manual-check.md)
-- [p3-t5-browser-e2e-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t5-browser-e2e-closeout.md)
-- [p3-t6-phase-3-operations-and-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t6-phase-3-operations-and-acceptance.md)
-- [p3-t6-phase-3-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P3-Owner-Frontend/02-after-execution/p3-t6-phase-3-closeout.md)
-
-## 4. P4-Deployment
-
-- `docs/P4-Deployment/01-before-execution/`
-  P4 部署准备阶段的部署策略、虚拟机部署与容器化落地文档。
-- `docs/P4-Deployment/02-after-execution/`
-  P4 执行后的 Docker 首启检查单、VM Compose 生产模板与部署收口文档。
-
-建议按下面顺序阅读。
-
-当前标准入口：
-
-- 如果你的目标是“部署到一台新的 Linux 机器”，默认先看：
-  [linux-vm-deployment-playbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/linux-vm-deployment-playbook.md)
-
-- 总体部署策略与路线：
-  [vm-and-docker-deployment-guide.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/01-before-execution/vm-and-docker-deployment-guide.md)
-- 新 Linux 机器的可重复部署范式：
-  [linux-vm-deployment-playbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/linux-vm-deployment-playbook.md)
-- 新 VM 的标准生产模板：
-  [vm-compose-production-template.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-compose-production-template.md)
-- 实际上线时的最短操作清单：
-  [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)
-
-当前真实结果：
-
-- 新 VM `vm-accept` 的实际收口结果：
-  [vm-accept-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-accept-acceptance-closeout.md)
-- 新 VM `vm-accept` 的执行说明与收尾约束：
-  [vm-accept-current-execution-note.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-accept-current-execution-note.md)
-- 本次重建 VM 的复盘与坑位记录：
-  [vm-rebuild-lessons-learned.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-rebuild-lessons-learned.md)
-
-Docker 基线：
-
-- 本机 Docker 首启与初始化检查：
-  [docker-first-start-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-first-start-checklist.md)
-- 本机 Docker 六项能力验收：
-  [docker-six-capability-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-six-capability-acceptance.md)
-- P4 Docker 阶段收口结论：
-  [p4-docker-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/p4-docker-acceptance-closeout.md)
-
-历史归档：
-
-- `ubu2404` 的历史运行与运维手册：
-  [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)
-- `ubu2404` 的历史业务验收执行单：
-  [vm-ubu2404-full-business-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-full-business-acceptance.md)
-
-## 5. Reference
-
-- `docs/_reference/`
-  非阶段主链的补充说明与参考材料。
+- 想在本机把服务跑起来：先看 [local-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/local-runtime-handbook.md)
+- 想维护已经在 VM 上跑起来的服务：先看 [vm-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/vm-runtime-handbook.md)
+- 想知道改代码以后本机和 VM 各要做什么：先看 [code-change-sync-and-restart.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/code-change-sync-and-restart.md)
+- 想理解系统为什么这么分层：看 [core-business-flow.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/core-business-flow.md)
