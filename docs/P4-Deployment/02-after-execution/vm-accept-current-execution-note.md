@@ -91,6 +91,36 @@ PB_ADMIN_PASSWORD=<real-admin-password>
 
 在这之前必须先导出真实 `DEMO_API_KEY`。
 
+### 3.5 从 VM 外部直接通过 Open API 上传文件
+
+如果你要模拟“书童四九”作为外部调用方上传新文件，而不是登录 VM 内部 shell 手工上传，可直接在外部机器执行：
+
+```bash
+bash ./scripts/external_upload_file.sh '/absolute/path/to/your-file.pdf' '自定义标题'
+```
+
+默认约定：
+
+1. 目标入口取 `DEMO_SERVICE_BASE_URL`，未设置时回退到 `PUBLIC_BASE_URL`，再回退到 `http://192.168.2.9`
+2. API key 默认取 `DEMO_API_KEY`，未设置时回退到旧样例 `t1_verify_api_key_0001`
+3. 执行完成后会直接打印 `contentId`、`contentHash`、detail URL 与 direct URL
+
+### 3.6 从 VM 外部直接删除内容
+
+如果你是通过 VM 外部 Open API 单独上传了一条内容，而不是通过 `vm_demo_step1_write_and_share.sh` 写入的演示内容，那么清理时不能只依赖 `vm_demo_step3_cleanup.sh`。
+
+可直接在外部机器执行：
+
+```bash
+bash ./scripts/external_delete_content.sh '<contentId>'
+```
+
+默认约定：
+
+1. 目标入口取 `DEMO_SERVICE_BASE_URL`，未设置时回退到 `PUBLIC_BASE_URL`，再回退到 `http://192.168.2.9`
+2. API key 默认取 `DEMO_API_KEY`，未设置时回退到旧样例 `t1_verify_api_key_0001`
+3. 该脚本只按 `contentId` 删除一条内容，不会自动清理由 `vm_demo_step1_write_and_share.sh` 生成的整套 demo state
+
 ## 4. VM 上可直接执行的最小命令
 
 ```bash

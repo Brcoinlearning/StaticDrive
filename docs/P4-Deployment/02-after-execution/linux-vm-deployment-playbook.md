@@ -203,6 +203,28 @@ bash ./scripts/vm_demo_step2_print_and_verify.sh
 bash ./scripts/vm_demo_step3_cleanup.sh
 ```
 
+### 7.1 外部调用方验证入口
+
+如果你要验证的不是“登录 VM 内部 shell 跑脚本”，而是“像书童四九这样的外部调用方直接通过 Open API 上传或删除文件”，可直接在外部机器执行：
+
+上传文件：
+
+```bash
+bash ./scripts/external_upload_file.sh '/absolute/path/to/your-file.pdf' '自定义标题'
+```
+
+删除内容：
+
+```bash
+bash ./scripts/external_delete_content.sh '<contentId>'
+```
+
+说明：
+
+1. 这两个脚本默认使用旧样例 API key `t1_verify_api_key_0001`
+2. 这两个脚本默认把目标入口解析到 `DEMO_SERVICE_BASE_URL -> PUBLIC_BASE_URL -> http://192.168.2.9`
+3. 它们适合做“外部客户端通过 Open API 写入 / 删除”的人工验证，不替代 `vm_demo_step0` 到 `vm_demo_step3` 这套完整收口流程
+
 ## 8. 高风险坑位
 
 新机器部署时，优先防这几类问题：
