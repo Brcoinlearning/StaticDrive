@@ -7,6 +7,7 @@
 - [local-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/local-runtime-handbook.md)：本机运行手册，覆盖本地启动、重启、常用地址、常用检查命令。
 - [vm-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/vm-runtime-handbook.md)：虚拟机运行手册，覆盖 VM 上的代码位置、Compose/Nginx/systemd 常用操作、常用检查命令。
 - [code-change-sync-and-restart.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/code-change-sync-and-restart.md)：代码变更后的同步、重启与验证规则，解决“改了哪里、要不要重启什么、VM 怎么同步”的日常问题。
+- [common-scripts-and-copyable-commands.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/common-scripts-and-copyable-commands.md)：常用脚本与可直接复制的命令速查，适合日常维护时快速拿命令执行。
 - [routes-and-urls-cheatsheet.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/routes-and-urls-cheatsheet.md)：常用接口、页面地址与典型入口速查表。
 - [data-and-storage-operations.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/data-and-storage-operations.md)：数据目录、文件目录、清理、备份与恢复说明。
 - [release-and-commit-playbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/release-and-commit-playbook.md)：本地改动、验证、提交流程、同步到 VM 与最小发布验收清单。
@@ -15,6 +16,7 @@
 ## 2. 核心理解文档
 
 - [core-business-flow.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/core-business-flow.md)：核心业务链路图，说明业务壳、PocketBase、本地文件系统、网页层的职责关系。
+- [core-business-flow-for-non-technical-readers.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/core-business-flow-for-non-technical-readers.md)：核心业务链路图白话版，面向技术小白解释每条链路为什么这样设计。
 
 ## 3. 阶段性正式文档
 

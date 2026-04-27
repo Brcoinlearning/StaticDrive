@@ -919,6 +919,7 @@ test('web/list exposes missing local file filter and batch cleanup action', asyn
           perPage: 20,
           totalItems: 1,
           totalPages: 1,
+          missingLocalFileOnly: true,
           items: [{
             contentId: 'content_missing_file_filter',
             type: 'file',
@@ -959,8 +960,11 @@ test('web/list exposes missing local file filter and batch cleanup action', asyn
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /name="missingLocalFileOnly"/);
   assert.match(response.rawBody, /仅看缺失本地文件/);
+  assert.match(response.rawBody, /data-batch-toggle="all"/);
+  assert.match(response.rawBody, /全选当前页/);
   assert.match(response.rawBody, /value="cleanup_missing_file_records"/);
   assert.match(response.rawBody, /清理缺失文件记录/);
+  assert.match(response.rawBody, /type="hidden" name="missingLocalFileOnly" value="1"/);
 });
 
 test('web public list renders shared content discovery page', async () => {
@@ -1866,11 +1870,13 @@ test('web owner batch cleanup action redirects back with cleanup success flash',
       'x-shutong49-api-key': 'valid-key',
       'content-type': 'application/x-www-form-urlencoded'
     },
-    body: 'batchAction=cleanup_missing_file_records&contentIds=item_m1&contentIds=item_m2'
+    body: 'batchAction=cleanup_missing_file_records&missingLocalFileOnly=1&page=1&contentIds=item_m1&contentIds=item_m2'
   }), response);
 
   assert.deepEqual(deletedIds, ['item_m1', 'item_m2']);
   assert.equal(response.statusCode, 302);
+  assert.match(response.headers.location, /^\/web\/list\?/);
+  assert.match(response.headers.location, /missingLocalFileOnly=1/);
   assert.match(response.headers.location, /title=%E6%B8%85%E7%90%86%E5%B7%B2%E5%AE%8C%E6%88%90/);
 });
 

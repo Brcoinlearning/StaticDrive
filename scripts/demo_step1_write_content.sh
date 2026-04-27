@@ -11,8 +11,9 @@ require_http_ok "$DEMO_SERVICE_BASE_URL/api/health" "business shell"
 FILE_BASE64="$(node -e "const fs=require('fs'); process.stdout.write(fs.readFileSync(process.argv[1]).toString('base64'));" "$DEMO_FILE_PATH")"
 FILE_FILENAME="$(basename "$DEMO_FILE_PATH")"
 FILE_EXTENSION="${FILE_FILENAME##*.}"
+FILE_EXTENSION_LOWER="$(printf '%s' "$FILE_EXTENSION" | tr '[:upper:]' '[:lower:]')"
 
-case "${FILE_EXTENSION,,}" in
+case "$FILE_EXTENSION_LOWER" in
   pdf)
     FILE_MIME_TYPE="application/pdf"
     FILE_TITLE="软件工程期中试卷 PDF 样例"

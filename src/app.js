@@ -123,6 +123,23 @@ function buildRedirectUrl(pathname, flash) {
   return `${nextUrl.pathname}${nextUrl.search}`;
 }
 
+function appendOwnerListState(nextUrl, form) {
+  const missingLocalFileOnly = form.get('missingLocalFileOnly');
+  if (missingLocalFileOnly === '1') {
+    nextUrl.searchParams.set('missingLocalFileOnly', '1');
+  }
+
+  const page = form.get('page');
+  if (typeof page === 'string' && page.trim()) {
+    nextUrl.searchParams.set('page', page.trim());
+  }
+
+  const query = form.get('query');
+  if (typeof query === 'string' && query.trim()) {
+    nextUrl.searchParams.set('q', query.trim());
+  }
+}
+
 async function readForm(request) {
   const chunks = [];
   for await (const chunk of request) {
@@ -523,7 +540,9 @@ export function createApp(config, dependencies = {}) {
               : action === 'cleanup_missing_file_records'
                 ? '清理'
                 : '批量删除';
-          redirect(response, buildRedirectUrl('/web/list', {
+          const redirectUrl = new URL(`http://127.0.0.1/web/list`);
+          appendOwnerListState(redirectUrl, form);
+          redirect(response, buildRedirectUrl(`${redirectUrl.pathname}${redirectUrl.search}`, {
             tone: 'success',
             title: action === 'cleanup_missing_file_records' ? '清理已完成' : actionLabel + '已完成',
             message: action === 'cleanup_missing_file_records'

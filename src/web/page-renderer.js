@@ -557,7 +557,7 @@ function renderToolbar({ totalItems, page, query, missingLocalFileOnly = false, 
   </section>`;
 }
 
-function renderBatchPanel(items) {
+function renderBatchPanel({ items, query = '', page = 1, missingLocalFileOnly = false }) {
   if (!items.length) {
     return '';
   }
@@ -565,6 +565,9 @@ function renderBatchPanel(items) {
   return `<section class="panel">
     <h3>批量操作</h3>
     <form method="post" action="/web/action/batch" class="batch-panel">
+      ${query ? `<input type="hidden" name="query" value="${escapeHtml(query)}">` : ''}
+      <input type="hidden" name="page" value="${escapeHtml(page)}">
+      ${missingLocalFileOnly ? '<input type="hidden" name="missingLocalFileOnly" value="1">' : ''}
       <div class="field-stack">
         <label for="batchAction"><strong>批量动作</strong></label>
         <select id="batchAction" name="batchAction">
@@ -574,6 +577,11 @@ function renderBatchPanel(items) {
           <option value="cleanup_missing_file_records">清理缺失文件记录</option>
         </select>
       </div>
+      <div class="action-row">
+        <button type="button" class="secondary" data-batch-toggle="all">全选当前页</button>
+        <button type="button" class="secondary" data-batch-toggle="none">清空选择</button>
+        <span class="subtle-note">当前批量选择只作用于本页已加载的记录。</span>
+      </div>
       <div class="field-stack">
         ${items.map((item) => `<label class="batch-item"><input type="checkbox" name="contentIds" value="${escapeHtml(item.contentId)}"><span><strong>${escapeHtml(item.title || item.originalFilename || '未命名内容')}</strong><span class="subtle-note">${escapeHtml(item.contentId)} · ${escapeHtml(item.type === 'rich_text' ? '富文本' : '文件')} · ${escapeHtml(item.isShared ? '已公开' : '未公开')}</span></span></label>`).join('')}
       </div>
@@ -582,6 +590,21 @@ function renderBatchPanel(items) {
         <span class="subtle-note">批量删除会直接删除内容；批量分享与批量撤销分享会逐条复用现有写路径。</span>
       </div>
     </form>
+    <script>
+      (() => {
+        const root = document.currentScript?.previousElementSibling?.previousElementSibling?.closest('form.batch-panel')
+          ?? document.currentScript?.previousElementSibling?.closest('form.batch-panel')
+          ?? document.currentScript?.parentElement?.querySelector('form.batch-panel');
+        if (!root) return;
+        const checkboxes = Array.from(root.querySelectorAll('input[name="contentIds"][type="checkbox"]'));
+        root.querySelector('[data-batch-toggle="all"]')?.addEventListener('click', () => {
+          for (const checkbox of checkboxes) checkbox.checked = true;
+        });
+        root.querySelector('[data-batch-toggle="none"]')?.addEventListener('click', () => {
+          for (const checkbox of checkboxes) checkbox.checked = false;
+        });
+      })();
+    </script>
   </section>`;
 }
 
@@ -729,7 +752,7 @@ export function renderOwnerListPage(payload) {
     heading: 'Owner 内容列表',
     description: '这里是 owner 侧的主入口。你可以浏览已写入内容、确认公开状态，并进入详情页继续执行分享、撤销分享、更新或删除。',
     mode: 'owner',
-    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${renderOwnerTopbarLinks()}${renderBatchPanel(payload.items)}${cards}`
+    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
   });
 }
 
@@ -744,7 +767,7 @@ export function renderOwnerSearchPage(payload) {
     description: payload.query ? `当前展示与“${payload.query}”相关的 owner 内容。` : '未提供关键词，显示默认结果。',
     mode: 'owner',
     query: payload.query,
-    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, missingLocalFileOnly: payload.missingLocalFileOnly, backHref: '/web/list' })}${renderOwnerTopbarLinks()}${renderBatchPanel(payload.items)}${cards}`
+    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, missingLocalFileOnly: payload.missingLocalFileOnly, backHref: '/web/list' })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, query: payload.query, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
   });
 }
 

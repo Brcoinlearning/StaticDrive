@@ -13,6 +13,8 @@ node_modules/
 playwright-report/
 test-results/
 .docker-cache/
+.demo-state/
+workspace/
 
 # Local sample file kept outside versioned assets
 2015-2016 第二学期 软件工程 期中试卷.pdf
