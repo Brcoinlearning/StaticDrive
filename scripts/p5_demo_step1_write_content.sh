@@ -7,7 +7,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 require_http_ok "$P5_DEMO_SERVICE_BASE_URL/api/health" "business shell"
 
-CONTENT_REQUEST_BODY="$(node -e "process.stdout.write(JSON.stringify({ title: process.argv[1], body: process.argv[2], authorName: 'Demo Author', createdAt: '2026-05-02T10:00:00.000Z' }));" "$P5_DEMO_TITLE" "$P5_DEMO_BODY")"
+CONTENT_REQUEST_BODY="$(node -e "process.stdout.write(JSON.stringify({ title: process.argv[1], body: process.argv[2], bodyFormat: process.argv[3], authorName: 'Demo Author', createdAt: '2026-05-02T10:00:00.000Z' }));" "$P5_DEMO_TITLE" "$P5_DEMO_BODY" "$P5_DEMO_BODY_FORMAT")"
 
 CONTENT_RESPONSE="$(curl -sS -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/content" \
   -H 'content-type: application/json' \
@@ -17,12 +17,12 @@ CONTENT_RESPONSE="$(curl -sS -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/conten
 EMPTY_TITLE_RESPONSE="$(curl -sS -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/content" \
   -H 'content-type: application/json' \
   -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY" \
-  -d '{"title":"   ","body":"<p>只有正文，没有标题。</p>"}')"
+  -d '{"title":"   ","body":"<p>只有正文，没有标题。</p>","bodyFormat":"html"}'"
 
 INVALID_BODY_STATUS="$(curl -sS -o /tmp/p5_demo_invalid_body.json -w '%{http_code}' -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/content" \
   -H 'content-type: application/json' \
   -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY" \
-  -d '{"title":"invalid","body":"   "}')"
+  -d '{"title":"invalid","body":"   ","bodyFormat":"html"}'"
 
 require_json_field "$CONTENT_RESPONSE" "contentId" "p5-demo-step1:content"
 require_json_field "$CONTENT_RESPONSE" "contentHash" "p5-demo-step1:content"
@@ -49,5 +49,6 @@ save_p5_demo_state
 
 echo "[p5-demo-step1] content created: $P5_CONTENT_ID"
 echo "[p5-demo-step1] content hash: $P5_CONTENT_HASH"
+echo "[p5-demo-step1] content bodyFormat: $P5_DEMO_BODY_FORMAT"
 echo "[p5-demo-step1] empty title write: ok"
 echo "[p5-demo-step1] invalid body rejected with 400"

@@ -34,6 +34,8 @@ test('write/html creates unified rich_text content record', async () => {
         assert.equal(record.type, 'rich_text');
         assert.equal(record.title, 'Hello HTML');
         assert.equal(record.html_content, '<p>body</p>');
+        assert.equal(record.body_source, '<p>body</p>');
+        assert.equal(record.body_format, 'html');
         assert.equal(record.mime_type, 'text/html');
         assert.equal(record.is_shared, false);
         return { id: 'content_1' };
@@ -74,6 +76,8 @@ test('write/html accepts empty title and keeps body as the only required content
       async createContent(record) {
         assert.equal(record.title, '');
         assert.equal(record.html_content, '<p>body only</p>');
+        assert.equal(record.body_source, '<p>body only</p>');
+        assert.equal(record.body_format, 'html');
         return { id: 'content_optional_title' };
       },
       async healthCheck() {
@@ -111,6 +115,8 @@ test('write/content accepts unified content payload and reuses rich_text write c
         assert.equal(record.type, 'rich_text');
         assert.equal(record.title, 'Unified Title');
         assert.equal(record.html_content, '<article><p>Unified Body</p></article>');
+        assert.equal(record.body_source, '<article><p>Unified Body</p></article>');
+        assert.equal(record.body_format, 'html');
         assert.equal(Object.hasOwn(record, 'author_name'), false);
         assert.equal(Object.hasOwn(record, 'created_at'), false);
         return { id: 'content_from_content_api' };
@@ -142,6 +148,150 @@ test('write/content accepts unified content payload and reuses rich_text write c
   assert.equal(response.body.type, 'rich_text');
 });
 
+
+
+test('write/content writes markdown body and stores rendered html in unified rich text fields', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-markdown'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.owner_user_id, 'user_123');
+        assert.equal(record.type, 'rich_text');
+        assert.equal(record.title, 'Markdown Title');
+        assert.equal(record.body_source, '# Hello\n\nThis is **bold** text.');
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<h1>Hello</h1><p>This is <strong>bold</strong> text.</p>');
+        return { id: 'content_from_markdown_api' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Title',
+      body: '# Hello\n\nThis is **bold** text.',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.body.contentId, 'content_from_markdown_api');
+  assert.equal(response.body.type, 'rich_text');
+});
+
+test('write/content rejects unsupported bodyFormat', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-invalid-format'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Unsupported Format',
+      body: 'plain body',
+      bodyFormat: 'plain_text'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error, 'bad_request');
+});
+
+
+test('write/content preserves markdown link urls containing underscores', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-markdown-link-url'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<p><a href="https://example.com/docs_path/file_name">Read <strong>docs</strong></a></p>');
+        return { id: 'content_markdown_link_url' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Link URL',
+      body: '[Read **docs**](https://example.com/docs_path/file_name)',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.body.contentId, 'content_markdown_link_url');
+});
+
+test('write/content rejects markdown when rendering fails', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-markdown-fail'), {
+    markdownRenderer() {
+      throw new Error('renderer exploded');
+    },
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Broken Markdown',
+      body: '# Broken',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error, 'bad_request');
+});
 test('write/content rejects missing body', async () => {
   const app = createApp(createConfig('/tmp/shutong49-test-write-content-missing-body'), {
     pocketbaseClient: {
@@ -465,6 +615,9 @@ test('query/list returns owner-scoped content summaries', async () => {
     type: 'file',
     title: 'Quarterly Report',
     body: '',
+    bodyFormat: null,
+    renderedBodyHtml: '',
+    htmlContent: '',
     authorName: null,
     summary: '',
     originalFilename: 'report.pdf',
@@ -730,6 +883,9 @@ test('query/detail returns owner-scoped content detail', async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.contentId, 'content_detail_1');
   assert.equal(response.body.ownerUserId, 'user_123');
+  assert.equal(response.body.body, '<p>Detail</p>');
+  assert.equal(response.body.bodyFormat, 'html');
+  assert.equal(response.body.renderedBodyHtml, '<p>Detail</p>');
   assert.equal(response.body.htmlContent, '<p>Detail</p>');
 });
 
@@ -782,6 +938,9 @@ test('query/content returns unified content object detail via content semantic r
   assert.equal(response.body.contentId, 'content_content_1');
   assert.equal(response.body.title, 'Content Route Detail');
   assert.equal(response.body.body, '<article><p>Route body</p></article>');
+  assert.equal(response.body.bodyFormat, 'html');
+  assert.equal(response.body.renderedBodyHtml, '<article><p>Route body</p></article>');
+  assert.equal(response.body.htmlContent, '<article><p>Route body</p></article>');
   assert.equal(response.body.authorName, 'Alice');
   assert.equal(response.body.summary, 'Route body');
 });
@@ -892,6 +1051,8 @@ test('content service exposes unified rich_text content object mapping', async (
   assert.equal(detail.authorName, 'Alice');
   assert.equal(detail.createdAt, '2026-05-01 09:30:00.000Z');
   assert.equal(detail.summary, 'Hello world.');
+  assert.equal(detail.bodyFormat, 'html');
+  assert.equal(detail.renderedBodyHtml, '<article><p>Hello <strong>world</strong>.</p></article>');
   assert.equal(detail.htmlContent, '<article><p>Hello <strong>world</strong>.</p></article>');
 });
 
@@ -1123,9 +1284,151 @@ test('public content hash returns rich text payload only when content is shared'
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.type, 'rich_text');
   assert.equal(response.body.access, 'content_hash');
+  assert.equal(response.body.body, '<h1>Public</h1>');
+  assert.equal(response.body.bodyFormat, 'html');
+  assert.equal(response.body.renderedBodyHtml, '<h1>Public</h1>');
   assert.equal(response.body.htmlContent, '<h1>Public</h1>');
 });
 
+
+
+test('query/content returns markdown detail with rendered html while preserving original body', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-query-content-markdown-detail'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById(contentId) {
+        assert.equal(contentId, 'content_markdown_detail_1');
+        return {
+          id: 'content_markdown_detail_1',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: 'Markdown Detail',
+          original_filename: '',
+          content_hash: 'markdowncontenthash1234detail12',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          body_source: '# Heading\n\nHello **Markdown**',
+          body_format: 'markdown',
+          html_content: '<h1>Heading</h1><p>Hello <strong>Markdown</strong></p>',
+          is_shared: true,
+          created: '2026-05-01 13:00:00.000Z',
+          updated: '2026-05-01 13:05:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/api/query/content/content_markdown_detail_1',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.body, '# Heading\n\nHello **Markdown**');
+  assert.equal(response.body.bodyFormat, 'markdown');
+  assert.equal(response.body.renderedBodyHtml, '<h1>Heading</h1><p>Hello <strong>Markdown</strong></p>');
+  assert.equal(response.body.htmlContent, '<h1>Heading</h1><p>Hello <strong>Markdown</strong></p>');
+});
+
+test('web/detail renders markdown content from rendered html instead of raw markdown body', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-detail-markdown'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_markdown_page',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: 'Markdown 详情页',
+          original_filename: '',
+          content_hash: 'markdownpagehash1234markdownpage',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          body_source: '# Raw Markdown\n\nParagraph',
+          body_format: 'markdown',
+          html_content: '<h1>Raw Markdown</h1><p>Paragraph</p>',
+          is_shared: true,
+          created: '2026-04-18 15:10:00.000Z',
+          updated: '2026-04-18 15:10:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/detail/content_markdown_page',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /Markdown 渲染预览/);
+  assert.match(response.rawBody, /srcdoc="&lt;h1&gt;Raw Markdown&lt;\/h1&gt;&lt;p&gt;Paragraph&lt;\/p&gt;"/);
+  assert.match(response.rawBody, /textarea id="body"/);
+  assert.doesNotMatch(response.rawBody, /textarea id="body"># Raw Markdown/);
+});
+
+test('web public page renders markdown content from rendered html', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-public-markdown'), {
+    contentService: {
+      async getPublicContentByHash() {
+        return {
+          access: 'content_hash',
+          contentId: 'content_public_markdown',
+          type: 'rich_text',
+          title: 'Public Markdown',
+          contentHash: 'publicmarkdownhash1234publicmkd',
+          mimeType: 'text/html',
+          body: '# Public\n\nBody',
+          bodyFormat: 'markdown',
+          renderedBodyHtml: '<h1>Public</h1><p>Body</p>',
+          htmlContent: '<h1>Public</h1><p>Body</p>',
+          accessUrl: 'http://127.0.0.1:8787/api/public/content/publicmarkdownhash1234publicmkd'
+        };
+      }
+    },
+    pocketbaseClient: {
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/public/content/publicmarkdownhash1234publicmkd',
+    headers: {
+      host: '127.0.0.1:8787'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /公开 Markdown 渲染内容/);
+  assert.match(response.rawBody, /srcdoc="&lt;h1&gt;Public&lt;\/h1&gt;&lt;p&gt;Body&lt;\/p&gt;"/);
+  assert.match(response.rawBody, /正文格式：markdown/);
+});
 test('web/list renders owner content list page with action-oriented layout', async () => {
   const app = createApp(createConfig('/tmp/shutong49-web-list'), {
     pocketbaseClient: {
@@ -1521,6 +1824,7 @@ test('web/detail renders rich text in sandboxed iframe and owner action panel', 
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /<iframe class="preview" sandbox=""/);
   assert.match(response.rawBody, /srcdoc="&lt;script&gt;alert\(1\)&lt;\/script&gt;&lt;h1&gt;Hello&lt;\/h1&gt;"/);
+  assert.match(response.rawBody, /HTML 预览|最终展示预览/);
   assert.match(response.rawBody, /Owner 操作/);
   assert.match(response.rawBody, /action="\/web\/action\/share\/revoke"/);
 });
@@ -2197,7 +2501,8 @@ test('web owner detail renders update panel for rich text content', async () => 
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /内容更新/);
   assert.match(response.rawBody, /action="\/web\/action\/update"/);
-  assert.match(response.rawBody, /textarea id="htmlContent"/);
+  assert.match(response.rawBody, /textarea id="body"/);
+  assert.match(response.rawBody, /select id="bodyFormat"/);
 });
 
 test('web owner batch action redirects back to list with success flash', async () => {
@@ -2300,7 +2605,7 @@ test('web owner batch cleanup action redirects back with cleanup success flash',
   assert.match(response.headers.location, /title=%E6%B8%85%E7%90%86%E5%B7%B2%E5%AE%8C%E6%88%90/);
 });
 
-test('write/update updates rich text content fields', async () => {
+test('write/update updates rich text html fields through unified content mapping', async () => {
   const updates = [];
   const app = createApp(createConfig('/tmp/shutong49-write-update'), {
     pocketbaseClient: {
@@ -2318,6 +2623,8 @@ test('write/update updates rich text content fields', async () => {
           storage_path: '',
           mime_type: 'text/html',
           file_size: 0,
+          body_source: '<p>before</p>',
+          body_format: 'html',
           html_content: '<p>before</p>',
           is_shared: false,
           created: '2026-04-18 19:00:00.000Z',
@@ -2336,6 +2643,8 @@ test('write/update updates rich text content fields', async () => {
           storage_path: '',
           mime_type: 'text/html',
           file_size: 0,
+          body_source: record.body_source,
+          body_format: record.body_format,
           html_content: record.html_content,
           is_shared: false,
           created: '2026-04-18 19:00:00.000Z',
@@ -2359,17 +2668,209 @@ test('write/update updates rich text content fields', async () => {
     body: {
       contentId: 'content_update_1',
       title: 'After',
-      htmlContent: '<p>after</p>'
+      body: '<p>after</p>',
+      bodyFormat: 'html'
     }
   }), response);
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.title, 'After');
+  assert.equal(response.body.body, '<p>after</p>');
+  assert.equal(response.body.bodyFormat, 'html');
+  assert.equal(response.body.renderedBodyHtml, '<p>after</p>');
   assert.equal(response.body.htmlContent, '<p>after</p>');
   assert.deepEqual(updates, [{
     id: 'content_update_1',
-    record: { title: 'After', html_content: '<p>after</p>' }
+    record: { title: 'After', body_source: '<p>after</p>', body_format: 'html', html_content: '<p>after</p>' }
   }]);
+});
+
+test('write/update updates markdown content and stores rendered html through unified mapping', async () => {
+  const updates = [];
+  const app = createApp(createConfig('/tmp/shutong49-write-update-markdown'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_update_markdown_1',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: 'Before Markdown',
+          original_filename: '',
+          content_hash: 'contentupdatemarkdown1234contup',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          body_source: '# Before',
+          body_format: 'markdown',
+          html_content: '<h1>Before</h1>',
+          is_shared: false,
+          created: '2026-04-18 19:30:00.000Z',
+          updated: '2026-04-18 19:30:00.000Z'
+        };
+      },
+      async updateContent(id, record) {
+        updates.push({ id, record });
+        return {
+          id: 'content_update_markdown_1',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: 'After Markdown',
+          original_filename: '',
+          content_hash: 'contentupdatemarkdown1234contup',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          body_source: record.body_source,
+          body_format: record.body_format,
+          html_content: record.html_content,
+          is_shared: false,
+          created: '2026-04-18 19:30:00.000Z',
+          updated: '2026-04-18 19:40:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/update',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      contentId: 'content_update_markdown_1',
+      title: 'After Markdown',
+      body: '# After\n\nThis is **updated**.',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.title, 'After Markdown');
+  assert.equal(response.body.body, '# After\n\nThis is **updated**.');
+  assert.equal(response.body.bodyFormat, 'markdown');
+  assert.equal(response.body.renderedBodyHtml, '<h1>After</h1><p>This is <strong>updated</strong>.</p>');
+  assert.equal(response.body.htmlContent, '<h1>After</h1><p>This is <strong>updated</strong>.</p>');
+  assert.deepEqual(updates, [{
+    id: 'content_update_markdown_1',
+    record: {
+      title: 'After Markdown',
+      body_source: '# After\n\nThis is **updated**.',
+      body_format: 'markdown',
+      html_content: '<h1>After</h1><p>This is <strong>updated</strong>.</p>'
+    }
+  }]);
+});
+
+test('write/update rejects unsupported bodyFormat for rich text content', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-write-update-invalid-format'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_update_invalid_format',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: 'Before',
+          original_filename: '',
+          content_hash: 'contentupdateinvalidformatcont1',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          body_source: '<p>before</p>',
+          body_format: 'html',
+          html_content: '<p>before</p>',
+          is_shared: false,
+          created: '2026-04-18 19:50:00.000Z',
+          updated: '2026-04-18 19:50:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/update',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      contentId: 'content_update_invalid_format',
+      body: 'plain body',
+      bodyFormat: 'plain_text'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error, 'bad_request');
+});
+
+test('write/update rejects markdown update when rendering fails', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-write-update-markdown-fail'), {
+    markdownRenderer() {
+      throw new Error('renderer exploded');
+    },
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_update_markdown_fail',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: 'Before',
+          original_filename: '',
+          content_hash: 'contentupdatemarkdownfailcont1',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          body_source: '# Before',
+          body_format: 'markdown',
+          html_content: '<h1>Before</h1>',
+          is_shared: false,
+          created: '2026-04-18 20:00:00.000Z',
+          updated: '2026-04-18 20:00:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/update',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      contentId: 'content_update_markdown_fail',
+      body: '# Broken',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error, 'bad_request');
 });
 
 test('write/update rejects html update for file content', async () => {

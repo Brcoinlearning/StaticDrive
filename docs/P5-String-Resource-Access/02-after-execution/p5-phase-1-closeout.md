@@ -1,72 +1,54 @@
 # P5 Phase 1 Closeout
 
-本文档记录 P5 第一阶段“字符串资源 / 内容对象接入”的正式收口结果，作为本轮从“approved 准备链 + 隔离 worktree 实现”进入“已完成、可演示、可交接”的执行后证据。
+本文档记录 P5 第一阶段补充收口结果：在既有“内容对象接入边界”基础上，继续完成 `bodyFormat + Markdown` 的单一契约闭环，并把写入、更新、查询、owner/public 展示与演示入口统一到同一条 `contents` 主链路。
 
-文档定位：
+## 1. 本轮完成目标
 
-- 这是 P5 第一阶段的收口文档，回答“统一内容对象边界、`content` 语义写查、`rich_text` 公开详情复用和 owner 列表增强是否已经成立”。
-- 如果你要查看本轮正式开发前的边界、选型、架构、任务和测试契约，请继续看 `docs/P5-String-Resource-Access/10-requirements/`、`15-tech-selection/`、`20-architecture/`、`25-contract/`。
-- 如果你要继续进入下一阶段，例如 `bodyFormat`、Markdown 支持或图片策略，请新开下一轮正式需求与准备链，不要把它们混入本轮收口。
+本轮完成了以下目标：
 
-## 1. 本轮目标
+1. 固化 `body_source / body_format / html_content` 与 `body / bodyFormat / renderedBodyHtml / htmlContent` 的单一映射规则。
+2. 完成 `POST /api/write/content` 对 `html | markdown` 两种正文格式的写入支持。
+3. 完成 `POST /api/write/update` 对 `html | markdown` 两种正文格式的更新支持。
+4. 完成查询输出与 owner/public 页面对最终展示 HTML 的统一复用。
+5. 更新 P5 演示脚本，使 Markdown 主链路可以真实演示。
 
-P5 第一阶段的目标是：
+## 2. 当前统一规则
 
-1. 落定统一内容对象输入输出边界。
-2. 落定 `title/body/authorName/createdAt` 与现有 `contents` 记录之间的单一映射规则。
-3. 提供 `content` 语义的写入与查询入口。
-4. 继续复用现有 public content 主链路展示 `rich_text` 内容。
-5. 增强 owner 列表页，使其展示标题、正文摘要、来源用户、创建时间。
-6. 保持现有文件上传链路兼容。
+当前已落定的统一规则如下：
 
-## 2. 本轮完成内容
+1. `body_source -> body`
+2. `body_format -> bodyFormat`
+3. `html_content -> renderedBodyHtml`
+4. `htmlContent` 作为兼容字段，始终与 `renderedBodyHtml` 等值
+5. Markdown 转换只允许发生在写入 / 更新期
+6. 查询与页面层只消费最终 HTML，不在页面层动态转换 Markdown
+
+## 3. 本轮完成内容
 
 本轮已完成：
 
-1. 落定统一内容对象映射规则：
-   - `title -> contents.title`
-   - `body -> rich_text 记录的 contents.html_content`
-   - `authorName -> owner_user_id 关联用户 display_name 派生`
-   - `createdAt -> contents.created`
-   - `summary -> body 派生的纯文本摘要`
-2. 新增 `POST /api/write/content`。
-3. 新增 `GET /api/query/content/:contentId`。
-4. 继续复用现有 `/api/public/content/:contentHash` 与 `/web/public/content/:contentHash` 主链路展示 `rich_text` 内容。
-5. 增强 `/web/list` owner 列表卡片，展示摘要、作者、创建时间，并支持空标题降级。
-6. 更新 `README.md`，补充新增写接口、查询接口和 P5 演示脚本说明。
-7. 新增 P5 演示脚本：
-   - `scripts/p5_demo_common.sh`
-   - `scripts/p5_demo_step1_write_content.sh`
-   - `scripts/p5_demo_step2_query_and_share.sh`
-   - `scripts/p5_demo_step3_print_access_info.sh`
-   - `scripts/p5_demo_step4_cleanup_content.sh`
+1. `POST /api/write/content` 支持 `bodyFormat=html|markdown`。
+2. `POST /api/write/update` 支持 `body + bodyFormat` 更新。
+3. 查询对象统一返回 `body / bodyFormat / renderedBodyHtml / htmlContent`。
+4. owner 详情页预览统一使用 `renderedBodyHtml`。
+5. public 页面预览统一使用 `renderedBodyHtml`。
+6. owner 更新表单改为编辑 `body + bodyFormat`，不再停留在旧 `htmlContent` 心智。
+7. P5 demo 脚本默认演示 Markdown 写入、查询、公开展示主链路。
 
-## 3. 本轮未进入内容
+## 4. 范围外仍未进入内容
 
-本轮没有进入以下内容：
+以下内容仍未进入本轮：
 
-1. 资源访问密码。
-2. 第二套平行内容存储模型。
-3. 第二套 `rich_text` 公开访问体系。
-4. 全局命名重构。
-5. Markdown 转换、`bodyFormat`、图片资源托管等下一阶段内容扩展。
-
-这些不属于 P5 第一阶段收口范围，应在后续阶段单独建模。
-
-## 4. 交付状态
-
-截至本轮收口，P5 第一阶段已形成以下可交付能力：
-
-1. `content` 语义写入：`POST /api/write/content`
-2. `content` 语义查询：`GET /api/query/content/:contentId`
-3. 统一内容对象输出：`title/body/authorName/createdAt/summary`
-4. `rich_text` public API 与 public 页面继续可访问
-5. owner 列表页增强：摘要 / 作者 / 创建时间 / 空标题降级
-6. P5 专用演示脚本，可用于真实服务下的人工演示与清理
+1. 图片上传、托管和清理生命周期。
+2. 第二套公开访问体系。
+3. 第二套平行内容存储模型。
+4. HTML 清洗层。
+5. 资源访问密码。
+6. 完整 Markdown 规范兼容。
 
 ## 5. 自动化验证结果
 
-本轮已完成并通过以下自动化验证：
+本轮已完成并通过以下验证：
 
 ```bash
 npm test -- tests/content.test.js
@@ -80,67 +62,55 @@ bash -n scripts/p5_demo_common.sh \
 
 实际结果：
 
-1. `tests/content.test.js`：`62 passed, 0 failed`
-2. `npm test`：`86 passed, 0 failed`
-3. 新增演示脚本语法检查通过
+1. `tests/content.test.js`：通过
+2. `npm test`：`95 passed, 0 failed`
+3. P5 demo 脚本语法检查通过
 
-说明：
-
-- 本轮新增能力和既有主链路未发生自动化回归。
-- 新增 P5 演示脚本至少具备基础语法正确性。
-
-## 6. 人工演示与真实联调结果
-
-本轮已完成真实服务下的人工演示，关键结果如下：
-
-1. `POST /api/write/content` 成功写入内容对象。
-2. 空标题写入成功。
-3. 空 `body` 写入被正确拒绝，返回 `400`。
-4. `GET /api/query/content/:contentId` 成功返回统一内容对象。
-5. 不存在内容查询正确返回 `404`。
-6. `POST /api/write/share` 成功创建分享。
-7. `/api/public/content/:contentHash` 对 `rich_text` 内容可访问。
-8. `/web/public/content/:contentHash` 可直接展示内容页面。
-9. `/web/list` 已展示摘要、作者、创建时间，并支持空标题降级。
-10. P5 演示脚本 `step1`、`step2`、`step3` 已在真实服务环境下执行通过。
-
-## 7. 本轮修正的真实问题
-
-本轮执行过程中，修正了以下实际问题：
-
-1. worktree `.env` 中 `PB_ADMIN_PASSWORD` 末尾字符曾误写为全角 `！`，导致 PocketBase 管理员鉴权失败；现已修正为与主仓库一致的半角 `!`。
-2. `GET /api/query/content/:contentId` 在真实运行下，对不存在内容的查询最初会把 PocketBase 底层 `404` 包装成 `502 pocketbase_request_failed`；现已在服务层显式把包装后的 `404` 映射回业务上的 `content_not_found / 404`。
-3. P5 演示脚本已纳入文档并完成首轮人工验证，避免“代码有了但演示入口缺失”的交付断层。
-
-## 8. 覆盖的 Contract 项
+## 6. 本轮覆盖的 Contract 项
 
 本轮已覆盖：
 
-1. `MF-1`：`content` 对象写入成功。
-2. `MF-2`：`content` 对象查询成功。
-3. `MF-3`：`rich_text` 公开详情展示成功。
-4. `MF-4`：列表页增强成功。
-5. `EF-1`：`title` 为空时写入成功。
-6. `EF-4`：列表页在 `title` 为空时仍可展示记录。
-7. `EF-5`：列表摘要来自正文派生结果。
-8. `FF-1`：`body` 为空写入拒绝。
-9. `FF-2/FF-3`：不存在或不可公开访问内容的失败流未回归。
-10. `T1`、`T3` 高风险预览后写入要求已满足。
+1. `MF-1`：html 正文写入成功。
+2. `MF-2`：markdown 正文写入成功，并转换为最终展示 HTML。
+3. `MF-3`：markdown 正文更新成功，并同步更新最终展示 HTML。
+4. `MF-4`：查询输出与页面展示围绕同一份最终 HTML 工作。
+5. `EF-1`：`bodyFormat=html` 时原始正文与最终展示 HTML 关系正确。
+6. `EF-2`：`bodyFormat=markdown` 时原文与转换结果并存。
+7. `EF-4`：旧 `POST /api/write/html` 继续兼容。
+8. `EF-5`：`htmlContent === renderedBodyHtml`。
+9. `FF-2`：非法 `bodyFormat` 被拒绝。
+10. `FF-3`：Markdown 渲染失败时写入 / 更新被拒绝。
+11. `FF-4`：不存在内容查询返回业务 `404`。
+12. `FF-5`：页面层未引入 Markdown 动态转换。
 
-## 9. 残余风险
+## 7. 人工演示入口
 
-当前仍需明确保留的风险有：
+当前可用的 P5 演示脚本：
 
-1. `authorName` 依赖 `owner_user_id` 的 `expand` 结果；后续如果绕开当前适配层直接查询 `contents`，容易再次形成分叉口径。
-2. `createdAt` 当前固定采用系统 `contents.created`；写入口虽然接受 `createdAt`，但不会覆盖底层时间，这个口径已经固定，后续若要支持显式发布时间，应走新一轮需求与契约变更。
-3. 当前“内容页面直接展示”本质上仍以 HTML 型 `rich_text` 为主，不是通用 Markdown / 图片 / 富内容渲染系统。
-4. `/api/write/html` 与 `/api/write/content`、`/api/query/detail/:contentId` 与 `/api/query/content/:contentId` 目前并存；后续若继续演进，建议评估是否需要收敛对外文档心智，避免长期双入口漂移。
+1. `scripts/p5_demo_step1_write_content.sh`
+2. `scripts/p5_demo_step2_query_and_share.sh`
+3. `scripts/p5_demo_step3_print_access_info.sh`
+4. `scripts/p5_demo_step4_cleanup_content.sh`
 
-## 10. 对下一阶段的建议
+默认演示顺序：
 
-P5 第一阶段收口后，更合理的后续方向是：
+1. 写入一条 Markdown 内容对象。
+2. 查询内容对象，确认 `body / bodyFormat / renderedBodyHtml / htmlContent`。
+3. 打开 owner 详情页，确认预览使用最终 HTML、更新表单保留原始 `body + bodyFormat`。
+4. 打开 public 页面，确认公开访问展示的是渲染后的 HTML。
+5. 清理演示数据。
 
-1. 先明确正文格式声明层，例如 `bodyFormat`。
-2. 优先考虑 Markdown 支持，再复用现有 HTML 展示链路。
-3. 图片资源先评估“外链引用”边界，再决定是否进入资源托管体系。
-4. 如需继续进入下一阶段，请重新开启正式需求、选型、架构与契约链路，不要在本轮收口之后直接顺手扩写实现。
+## 8. 残余风险
+
+当前残余风险主要有：
+
+1. 当前 Markdown renderer 是最小实现，不是完整 Markdown 规范实现。
+2. owner 页面目前只提供基础文本域和格式选择，没有更强的富文本 / Markdown 编辑体验。
+3. 图片当前只支持正文引用已有可访问 URL，不进入托管责任。
+
+## 9. 下一步建议
+
+P5 第一阶段补充内容完成后，更合理的下一步是：
+
+1. 若继续收口本轮，优先做更完整的演示和人工验证记录。
+2. 若进入后续阶段，应单独开启资源访问密码或更强内容格式能力的新准备链。

@@ -18,7 +18,7 @@ echo "[p5-demo-step3] Share URL              -> $P5_SHARE_URL"
 
 echo
 echo "[p5-demo-step3] Suggested demo order:"
-echo "1. Run the content query API to show the unified content object."
-echo "2. Open the owner list page to show summary / author / createdAt rendering."
-echo "3. Open the owner detail page to show the existing detail flow still works."
-echo "4. Open the public detail page or direct public API to show rich_text reuses the existing public chain."
+echo "1. Run the content query API to show body / bodyFormat / renderedBodyHtml / htmlContent."
+echo "2. Open the owner detail page to show Markdown content is rendered from final HTML while the update form still preserves original body + bodyFormat."
+echo "3. Open the owner list page to show summary / author / createdAt rendering still works."
+echo "4. Open the public detail page or direct public API to show public rich_text also reuses renderedBodyHtml rather than raw Markdown."

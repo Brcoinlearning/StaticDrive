@@ -693,8 +693,8 @@ function renderPublicItemCard(item) {
 }
 
 function renderOwnerUpdatePanel(detail) {
-  const htmlField = detail.type === 'rich_text'
-    ? `<div class="field-stack"><label for="htmlContent"><strong>HTML 内容</strong></label><textarea id="htmlContent" name="htmlContent">${escapeHtml(detail.htmlContent)}</textarea></div>`
+  const bodyField = detail.type === 'rich_text'
+    ? `<div class="field-stack"><label for="body"><strong>正文内容</strong></label><textarea id="body" name="body">${escapeHtml(detail.body || '')}</textarea></div><div class="field-stack"><label for="bodyFormat"><strong>正文格式</strong></label><select id="bodyFormat" name="bodyFormat"><option value="html"${detail.bodyFormat === 'html' ? ' selected' : ''}>HTML</option><option value="markdown"${detail.bodyFormat === 'markdown' ? ' selected' : ''}>Markdown</option></select></div>`
     : '<p class="subtle-note">文件内容当前不支持在浏览器内替换二进制，只支持更新标题。</p>';
 
   return `<section class="panel">
@@ -705,7 +705,7 @@ function renderOwnerUpdatePanel(detail) {
         <label for="title"><strong>标题</strong></label>
         <input id="title" type="text" name="title" value="${escapeHtml(detail.title || '')}">
       </div>
-      ${htmlField}
+      ${bodyField}
       <div class="action-row">
         <button type="submit">保存更新</button>
         <span class="subtle-note">更新后内容 hash 不变，公开访问地址保持不变。</span>
@@ -813,7 +813,7 @@ export function renderPublicSearchPage(payload) {
 
 export function renderOwnerDetailPage(detail) {
   const contentBlock = detail.type === 'rich_text'
-    ? `<section class="panel preview-shell"><h3>HTML 预览</h3><iframe class="preview" sandbox="" srcdoc="${escapeHtml(detail.htmlContent)}"></iframe></section>`
+    ? `<section class="panel preview-shell"><div class="badge-row"><span class="badge">${escapeHtml(detail.bodyFormat === 'markdown' ? 'Markdown 渲染预览' : 'HTML 预览')}</span></div><h3>最终展示预览</h3><iframe class="preview" sandbox="" srcdoc="${escapeHtml(detail.renderedBodyHtml || detail.htmlContent || '')}"></iframe></section>`
     : `<section class="panel"><h3>文件交付信息</h3><div class="meta-grid"><div><strong>文件名</strong><span>${escapeHtml(detail.originalFilename || '未提供')}</span></div><div><strong>MIME</strong><span>${escapeHtml(detail.mimeType || '-')}</span></div><div><strong>大小</strong><span>${escapeHtml(formatFileSize(detail.fileSize))}</span></div><div><strong>本地文件状态</strong><span>${escapeHtml(detail.localFileExists === false ? '本地文件缺失' : '文件存在')}</span></div><div><strong>文件访问</strong>${detail.isShared ? `<a class="supporting-link" href="/web/public/content/${encodeURIComponent(detail.contentHash)}">打开公开下载页</a>` : '<span class="muted">未分享，无法公开下载。</span>'}</div></div>${detail.localFileExists === false ? '<p class="subtle-note">请重新上传或删除该记录，否则数据库记录与物理文件将持续不一致。</p>' : ''}</section>`;
 
   return renderLayout({
@@ -827,7 +827,7 @@ export function renderOwnerDetailPage(detail) {
 
 export function renderPublicContentPage(payload) {
   const body = payload.type === 'rich_text'
-    ? `<section class="detail-layout"><div class="detail-main"><section class="panel preview-shell"><div class="badge-row"><span class="badge">公开 HTML 内容</span></div><h2>${escapeHtml(payload.title || '未命名内容')}</h2><iframe class="preview" sandbox="" srcdoc="${escapeHtml(payload.htmlContent)}"></iframe></section></div><aside class="detail-side"><section class="panel"><h3>访问说明</h3><p>当前页面展示的是已公开富文本内容，外部访客无需登录即可查看。</p><div class="meta"><span>访问方式：${escapeHtml(payload.access === 'share_link' ? '分享链接' : '内容 hash')}</span></div></section></aside></section>`
+    ? `<section class="detail-layout"><div class="detail-main"><section class="panel preview-shell"><div class="badge-row"><span class="badge">${escapeHtml(payload.bodyFormat === 'markdown' ? '公开 Markdown 渲染内容' : '公开 HTML 内容')}</span></div><h2>${escapeHtml(payload.title || '未命名内容')}</h2><iframe class="preview" sandbox="" srcdoc="${escapeHtml(payload.renderedBodyHtml || payload.htmlContent || '')}"></iframe></section></div><aside class="detail-side"><section class="panel"><h3>访问说明</h3><p>当前页面展示的是已公开富文本内容，外部访客无需登录即可查看。</p><div class="meta"><span>访问方式：${escapeHtml(payload.access === 'share_link' ? '分享链接' : '内容 hash')}</span><span>正文格式：${escapeHtml(payload.bodyFormat || 'html')}</span></div></section></aside></section>`
     : `<section class="detail-layout"><div class="detail-main"><section class="panel"><div class="badge-row"><span class="badge">公开文件</span></div><h2>${escapeHtml(payload.title || payload.originalFilename || '文件内容')}</h2><p>文件名：${escapeHtml(payload.download.filename)}</p><p>MIME：${escapeHtml(payload.download.mimeType)}</p><p><a class="btn" href="${escapeHtml(payload.accessUrl)}">下载原始文件</a></p><p>该地址直接返回原始文件字节流，适合浏览器下载与外部系统拉取。</p></section></div><aside class="detail-side"><section class="panel"><h3>访问说明</h3><div class="meta"><span>访问方式：${escapeHtml(payload.access === 'share_link' ? '分享链接' : '内容 hash')}</span><span>大小：${escapeHtml(formatFileSize(payload.fileSize))}</span></div></section></aside></section>`;
 
   return renderLayout({

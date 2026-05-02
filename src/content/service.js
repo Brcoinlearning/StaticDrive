@@ -2,7 +2,204 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+
 const MAX_HASH_RETRIES = 5;
+
+
+function escapeHtml(value) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function renderMarkdownInline(value) {
+  let output = escapeHtml(value);
+  const stashedHtml = [];
+
+  function stash(html) {
+    const token = `MDHTMLTOKEN${stashedHtml.length}ENDTOKEN`;
+    stashedHtml.push(html);
+    return token;
+  }
+
+  output = output.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g, (_match, alt, src, title) => {
+    const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+    return stash(`<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${titleAttr}>`);
+  });
+  output = output.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g, (_match, label, href, title) => {
+    const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+    return stash(`<a href="${escapeHtml(href)}"${titleAttr}>${renderMarkdownInline(label)}</a>`);
+  });
+  output = output.replace(/`([^`]+)`/g, '<code>$1</code>');
+  output = output.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  output = output.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  output = output.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+  output = output.replace(/(^|[^_])_([^_]+)_(?!_)/g, '$1<em>$2</em>');
+  return output.replace(/MDHTMLTOKEN(\d+)ENDTOKEN/g, (_match, index) => stashedHtml[Number(index)] ?? '');
+}
+
+function flushMarkdownParagraph(lines, blocks) {
+  if (lines.length === 0) {
+    return;
+  }
+
+  blocks.push(`<p>${lines.map((line) => renderMarkdownInline(line)).join('<br>')}</p>`);
+  lines.length = 0;
+}
+
+function flushMarkdownList(items, ordered, blocks) {
+  if (items.length === 0) {
+    return;
+  }
+
+  const tag = ordered ? 'ol' : 'ul';
+  blocks.push(`<${tag}>${items.map((item) => `<li>${renderMarkdownInline(item)}</li>`).join('')}</${tag}>`);
+  items.length = 0;
+}
+
+function defaultMarkdownRenderer(markdown) {
+  if (typeof markdown !== 'string') {
+    const error = new Error('Markdown body must be a string.');
+    error.statusCode = 400;
+    error.code = 'invalid_markdown_payload';
+    throw error;
+  }
+
+  const normalized = markdown.replace(/\r\n/g, '\n').trim();
+  if (!normalized) {
+    const error = new Error('Markdown body is required.');
+    error.statusCode = 400;
+    error.code = 'invalid_markdown_payload';
+    throw error;
+  }
+
+  const lines = normalized.split('\n');
+  const blocks = [];
+  const paragraphLines = [];
+  const listItems = [];
+  let listOrdered = false;
+  let inCodeBlock = false;
+  let codeLines = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      flushMarkdownParagraph(paragraphLines, blocks);
+      flushMarkdownList(listItems, listOrdered, blocks);
+      if (inCodeBlock) {
+        blocks.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+        inCodeBlock = false;
+        codeLines = [];
+      } else {
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeLines.push(line);
+      continue;
+    }
+
+    if (!trimmed) {
+      flushMarkdownParagraph(paragraphLines, blocks);
+      flushMarkdownList(listItems, listOrdered, blocks);
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushMarkdownParagraph(paragraphLines, blocks);
+      flushMarkdownList(listItems, listOrdered, blocks);
+      const level = headingMatch[1].length;
+      blocks.push(`<h${level}>${renderMarkdownInline(headingMatch[2].trim())}</h${level}>`);
+      continue;
+    }
+
+    const unorderedMatch = trimmed.match(/^[-*]\s+(.*)$/);
+    if (unorderedMatch) {
+      flushMarkdownParagraph(paragraphLines, blocks);
+      if (listItems.length > 0 && listOrdered) {
+        flushMarkdownList(listItems, listOrdered, blocks);
+      }
+      listOrdered = false;
+      listItems.push(unorderedMatch[1].trim());
+      continue;
+    }
+
+    const orderedMatch = trimmed.match(/^\d+\.\s+(.*)$/);
+    if (orderedMatch) {
+      flushMarkdownParagraph(paragraphLines, blocks);
+      if (listItems.length > 0 && !listOrdered) {
+        flushMarkdownList(listItems, listOrdered, blocks);
+      }
+      listOrdered = true;
+      listItems.push(orderedMatch[1].trim());
+      continue;
+    }
+
+    const quoteMatch = trimmed.match(/^>\s?(.*)$/);
+    if (quoteMatch) {
+      flushMarkdownParagraph(paragraphLines, blocks);
+      flushMarkdownList(listItems, listOrdered, blocks);
+      blocks.push(`<blockquote><p>${renderMarkdownInline(quoteMatch[1].trim())}</p></blockquote>`);
+      continue;
+    }
+
+    if (listItems.length > 0) {
+      flushMarkdownList(listItems, listOrdered, blocks);
+    }
+    paragraphLines.push(trimmed);
+  }
+
+  if (inCodeBlock) {
+    blocks.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+  }
+
+  flushMarkdownParagraph(paragraphLines, blocks);
+  flushMarkdownList(listItems, listOrdered, blocks);
+  return blocks.join('');
+}
+
+function buildRenderedContent({ body, bodyFormat, markdownRenderer }) {
+  if (bodyFormat === 'html') {
+    return {
+      body,
+      bodyFormat: 'html',
+      renderedBodyHtml: body
+    };
+  }
+
+  if (bodyFormat === 'markdown') {
+    try {
+      return {
+        body,
+        bodyFormat: 'markdown',
+        renderedBodyHtml: markdownRenderer(body)
+      };
+    } catch (error) {
+      if (error?.statusCode && error?.code) {
+        throw error;
+      }
+
+      const wrappedError = new Error('Markdown rendering failed.');
+      wrappedError.statusCode = 400;
+      wrappedError.code = 'invalid_markdown_payload';
+      wrappedError.cause = error;
+      throw wrappedError;
+    }
+  }
+
+  const error = new Error('bodyFormat must be html or markdown.');
+  error.statusCode = 400;
+  error.code = 'invalid_content_payload';
+  throw error;
+}
 
 function buildAccessUrl(config, contentHash) {
   const baseUrl = config.publicBaseUrl || `http://${config.serviceHost}:${config.servicePort}`;
@@ -68,13 +265,41 @@ function resolveAuthorName(record) {
   return normalized || null;
 }
 
-function buildContentObjectFields(record) {
-  const body = record.type === 'rich_text' ? record.html_content ?? '' : '';
+function buildRichTextStorageFields({ body, bodyFormat, renderedBodyHtml }) {
+  return {
+    body_source: body,
+    body_format: bodyFormat,
+    html_content: renderedBodyHtml
+  };
+}
+
+function buildRichTextView(record) {
+  const renderedBodyHtml = record.type === 'rich_text' ? record.html_content ?? '' : '';
+  const bodyFormat = record.type === 'rich_text'
+    ? ((typeof record.body_format === 'string' && record.body_format.trim()) ? record.body_format.trim() : 'html')
+    : null;
+  const body = record.type === 'rich_text'
+    ? ((typeof record.body_source === 'string') ? record.body_source : renderedBodyHtml)
+    : '';
+
   return {
     body,
+    bodyFormat,
+    renderedBodyHtml,
+    htmlContent: renderedBodyHtml
+  };
+}
+
+function buildContentObjectFields(record) {
+  const richTextView = buildRichTextView(record);
+  return {
+    body: richTextView.body,
+    bodyFormat: richTextView.bodyFormat,
+    renderedBodyHtml: richTextView.renderedBodyHtml,
+    htmlContent: richTextView.htmlContent,
     authorName: resolveAuthorName(record),
     createdAt: record.created,
-    summary: body ? stripHtmlToText(body) : ''
+    summary: richTextView.renderedBodyHtml ? stripHtmlToText(richTextView.renderedBodyHtml) : ''
   };
 }
 
@@ -160,8 +385,7 @@ function buildContentDetail(config, record) {
   return {
     ...buildContentSummary(config, record),
     ownerUserId: record.owner_user_id,
-    storagePath: record.storage_path,
-    htmlContent: record.type === 'rich_text' ? record.html_content : ''
+    storagePath: record.storage_path
   };
 }
 
@@ -277,6 +501,7 @@ async function removeFileIfExists(fsImpl, filePath) {
 }
 
 function buildPublicHtmlPayload(config, record, access) {
+  const richTextView = buildRichTextView(record);
   return {
     access,
     contentId: record.id,
@@ -284,7 +509,10 @@ function buildPublicHtmlPayload(config, record, access) {
     title: record.title,
     contentHash: record.content_hash,
     mimeType: record.mime_type,
-    htmlContent: record.html_content,
+    body: richTextView.body,
+    bodyFormat: richTextView.bodyFormat,
+    renderedBodyHtml: richTextView.renderedBodyHtml,
+    htmlContent: richTextView.htmlContent,
     accessUrl: buildAccessUrl(config, record.content_hash)
   };
 }
@@ -308,7 +536,7 @@ function buildPublicFilePayload(config, record, fileContent, access) {
   };
 }
 
-export function createContentService({ config, pocketbaseClient, fsImpl = fs }) {
+export function createContentService({ config, pocketbaseClient, fsImpl = fs, markdownRenderer = defaultMarkdownRenderer }) {
   const storageRoot = path.join(config.workspaceDir, 'content-files');
 
   async function readStoredFile(storagePath) {
@@ -363,22 +591,33 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
     }
   }
 
-  async function createHtmlContent({ ownerUserId, title, htmlContent }) {
+  async function createHtmlContent({ ownerUserId, title, htmlContent, body, bodyFormat }) {
     const normalizedTitle = normalizeTitle(title);
+    const normalizedBodyFormat = bodyFormat === undefined || bodyFormat === null || bodyFormat === ''
+      ? 'html'
+      : bodyFormat;
+    const inputBody = body !== undefined ? body : htmlContent;
 
-    if (typeof htmlContent !== 'string') {
-      const error = new Error('htmlContent must be a string.');
+    if (typeof inputBody !== 'string') {
+      const error = new Error('body must be a string.');
       error.statusCode = 400;
-      error.code = 'invalid_html_payload';
+      error.code = normalizedBodyFormat === 'html' ? 'invalid_html_payload' : 'invalid_content_payload';
       throw error;
     }
 
-    if (!htmlContent.trim()) {
+    if (!inputBody.trim()) {
       const error = new Error('body is required for rich text content.');
       error.statusCode = 400;
-      error.code = 'invalid_html_payload';
+      error.code = normalizedBodyFormat === 'html' ? 'invalid_html_payload' : 'invalid_content_payload';
       throw error;
     }
+
+    const renderedContent = buildRenderedContent({
+      body: inputBody,
+      bodyFormat: normalizedBodyFormat,
+      markdownRenderer
+    });
+    const richTextStorage = buildRichTextStorageFields(renderedContent);
 
     const { contentHash, record } = await createContentWithRetry(async () => {
       const nextContentHash = crypto.randomBytes(16).toString('hex');
@@ -391,7 +630,7 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
         storage_path: '',
         mime_type: 'text/html',
         file_size: 0,
-        html_content: htmlContent,
+        ...richTextStorage,
         is_shared: false
       });
 
@@ -510,7 +749,7 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
     return buildContentDetail(config, record);
   }
 
-  async function updateContent({ ownerUserId, contentId, title, htmlContent }) {
+  async function updateContent({ ownerUserId, contentId, title, htmlContent, body, bodyFormat }) {
     const record = await ensureOwnedContent(ownerUserId, contentId);
     const nextTitle = normalizeOptionalString(title);
     const updateRecord = {};
@@ -525,22 +764,54 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
       updateRecord.title = nextTitle;
     }
 
-    if (htmlContent !== undefined) {
+    const nextBodyFormat = bodyFormat === undefined || bodyFormat === null || bodyFormat === ''
+      ? undefined
+      : bodyFormat;
+    const nextBody = body !== undefined ? body : htmlContent;
+
+    if (nextBody !== undefined || nextBodyFormat !== undefined) {
       if (record.type !== 'rich_text') {
-        const error = new Error('Only rich text content supports htmlContent updates.');
+        const error = new Error('Only rich text content supports body/htmlContent updates.');
         error.statusCode = 400;
         error.code = 'invalid_update_payload';
         throw error;
       }
 
-      if (typeof htmlContent !== 'string') {
-        const error = new Error('htmlContent must be a string.');
+      const effectiveBodyFormat = nextBodyFormat ?? (typeof record.body_format === 'string' && record.body_format.trim()
+        ? record.body_format.trim()
+        : 'html');
+      const effectiveBody = nextBody !== undefined
+        ? nextBody
+        : (typeof record.body_source === 'string' ? record.body_source : (record.html_content ?? ''));
+
+      if (typeof effectiveBody !== 'string') {
+        const error = new Error('body must be a string.');
         error.statusCode = 400;
         error.code = 'invalid_update_payload';
         throw error;
       }
 
-      updateRecord.html_content = htmlContent;
+      if (!effectiveBody.trim()) {
+        const error = new Error('body is required for rich text content.');
+        error.statusCode = 400;
+        error.code = 'invalid_update_payload';
+        throw error;
+      }
+
+      let renderedContent;
+      try {
+        renderedContent = buildRenderedContent({
+          body: effectiveBody,
+          bodyFormat: effectiveBodyFormat,
+          markdownRenderer
+        });
+      } catch (error) {
+        error.statusCode = 400;
+        error.code = 'invalid_update_payload';
+        throw error;
+      }
+
+      Object.assign(updateRecord, buildRichTextStorageFields(renderedContent));
     }
 
     if (Object.keys(updateRecord).length === 0) {

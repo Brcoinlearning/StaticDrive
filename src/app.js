@@ -174,7 +174,8 @@ export function createApp(config, dependencies = {}) {
   const contentService = dependencies.contentService ?? createContentService({
     config,
     pocketbaseClient,
-    fsImpl: dependencies.fsImpl
+    fsImpl: dependencies.fsImpl,
+    markdownRenderer: dependencies.markdownRenderer
   });
 
   return async function app(request, response) {
@@ -589,12 +590,14 @@ export function createApp(config, dependencies = {}) {
 
         if (url.pathname === '/web/action/update') {
           const title = form.get('title');
-          const htmlContent = form.get('htmlContent');
+          const body = form.get('body');
+          const bodyFormat = form.get('bodyFormat');
           await contentService.updateContent({
             ownerUserId: authContext.user.id,
             contentId: actionContentId,
             title,
-            ...(htmlContent !== null ? { htmlContent } : {})
+            ...(body !== null ? { body } : {}),
+            ...(bodyFormat !== null ? { bodyFormat } : {})
           });
           redirect(response, buildRedirectUrl(`/web/detail/${encodeURIComponent(actionContentId)}`, {
             tone: 'success',
@@ -661,7 +664,9 @@ export function createApp(config, dependencies = {}) {
           const result = await contentService.createHtmlContent({
             ownerUserId: authContext.user.id,
             title: body.title,
-            htmlContent: body.body,
+            body: body.body,
+            bodyFormat: body.bodyFormat,
+            htmlContent: body.htmlContent,
             authorName: body.authorName,
             createdAt: body.createdAt
           });
@@ -708,7 +713,9 @@ export function createApp(config, dependencies = {}) {
             ownerUserId: authContext.user.id,
             contentId: body.contentId,
             title: body.title,
-            ...(Object.prototype.hasOwnProperty.call(body, 'htmlContent') ? { htmlContent: body.htmlContent } : {})
+            ...(Object.prototype.hasOwnProperty.call(body, 'htmlContent') ? { htmlContent: body.htmlContent } : {}),
+            ...(Object.prototype.hasOwnProperty.call(body, 'body') ? { body: body.body } : {}),
+            ...(Object.prototype.hasOwnProperty.call(body, 'bodyFormat') ? { bodyFormat: body.bodyFormat } : {})
           });
 
           json(response, 200, result);

@@ -23,6 +23,7 @@ PUBLIC_RESPONSE="$(curl -sS "$P5_DEMO_SERVICE_BASE_URL/api/public/content/$P5_CO
 
 require_json_field "$QUERY_RESPONSE" "contentId" "p5-demo-step2:query"
 require_json_field "$QUERY_RESPONSE" "body" "p5-demo-step2:query"
+require_json_field "$QUERY_RESPONSE" "renderedBodyHtml" "p5-demo-step2:query"
 require_json_field "$SHARE_RESPONSE" "shareHash" "p5-demo-step2:share"
 require_json_field "$PUBLIC_RESPONSE" "htmlContent" "p5-demo-step2:public"
 
@@ -44,7 +45,9 @@ done < <(
 
 save_p5_demo_state
 
+QUERY_BODY_FORMAT="$(node -e "const payload=JSON.parse(process.argv[1]); process.stdout.write(String(payload.bodyFormat || ''));" "$QUERY_RESPONSE")"
 echo "[p5-demo-step2] content query: ok"
+echo "[p5-demo-step2] query bodyFormat: $QUERY_BODY_FORMAT"
 echo "[p5-demo-step2] missing query rejected with 404"
 echo "[p5-demo-step2] share created: $P5_SHARE_HASH"
 echo "[p5-demo-step2] public rich_text access: ok"

@@ -10,8 +10,19 @@ P5_DEMO_API_HEADER="${P5_DEMO_API_HEADER:-${DEMO_API_HEADER:-x-shutong49-api-key
 P5_DEMO_SERVICE_BASE_URL="${P5_DEMO_SERVICE_BASE_URL:-${DEMO_SERVICE_BASE_URL:-http://127.0.0.1:8787}}"
 P5_DEMO_OWNER_WEB_BASE_URL="${P5_DEMO_OWNER_WEB_BASE_URL:-http://127.0.0.1:8787/web}"
 P5_DEMO_PUBLIC_WEB_BASE_URL="${P5_DEMO_PUBLIC_WEB_BASE_URL:-http://127.0.0.1:8787/web/public}"
-P5_DEMO_TITLE="${P5_DEMO_TITLE:-P5 第一阶段内容对象演示}"
-P5_DEMO_BODY="${P5_DEMO_BODY:-<article><h1>P5 第一阶段内容对象演示</h1><p>这是统一内容对象写入后的正文第一段。</p><p>这是统一内容对象写入后的正文第二段。</p></article>}"
+P5_DEMO_TITLE="${P5_DEMO_TITLE:-P5 第一阶段 Markdown 内容演示}"
+P5_DEMO_BODY_FORMAT="${P5_DEMO_BODY_FORMAT:-markdown}"
+P5_DEMO_BODY="${P5_DEMO_BODY:-$(cat <<'EOF'
+# P5 第一阶段 Markdown 内容演示
+
+这是统一内容对象写入后的 **Markdown** 第一段。
+
+- 列表项一
+- 列表项二
+
+![演示图片](https://picsum.photos/seed/p5-demo/480/240)
+EOF
+)}"
 
 ensure_p5_demo_state_dir() {
   mkdir -p "$P5_DEMO_STATE_DIR"
@@ -26,6 +37,7 @@ P5_DEMO_SERVICE_BASE_URL='${P5_DEMO_SERVICE_BASE_URL}'
 P5_DEMO_OWNER_WEB_BASE_URL='${P5_DEMO_OWNER_WEB_BASE_URL}'
 P5_DEMO_PUBLIC_WEB_BASE_URL='${P5_DEMO_PUBLIC_WEB_BASE_URL}'
 P5_DEMO_TITLE='${P5_DEMO_TITLE}'
+P5_DEMO_BODY_FORMAT='${P5_DEMO_BODY_FORMAT}'
 P5_DEMO_BODY='${P5_DEMO_BODY}'
 P5_CONTENT_ID='${P5_CONTENT_ID:-}'
 P5_CONTENT_HASH='${P5_CONTENT_HASH:-}'
