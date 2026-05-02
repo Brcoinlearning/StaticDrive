@@ -38,6 +38,46 @@ function normalizeOptionalString(value) {
   return value.trim();
 }
 
+function stripHtmlToText(value) {
+  if (typeof value !== 'string' || !value) {
+    return '';
+  }
+
+  return value
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .trim();
+}
+
+function resolveAuthorName(record) {
+  const displayName = record?.expand?.owner_user_id?.display_name;
+  if (typeof displayName !== 'string') {
+    return null;
+  }
+
+  const normalized = displayName.trim();
+  return normalized || null;
+}
+
+function buildContentObjectFields(record) {
+  const body = record.type === 'rich_text' ? record.html_content ?? '' : '';
+  return {
+    body,
+    authorName: resolveAuthorName(record),
+    createdAt: record.created,
+    summary: body ? stripHtmlToText(body) : ''
+  };
+}
+
 function normalizeBatchContentIds(contentIds) {
   if (!Array.isArray(contentIds)) {
     const error = new Error('contentIds must be an array.');
@@ -88,6 +128,7 @@ function buildContentSummary(config, record) {
     contentId: record.id,
     type: record.type,
     title: record.title,
+    ...buildContentObjectFields(record),
     originalFilename: record.original_filename,
     contentHash: record.content_hash,
     accessUrl: buildAccessUrl(config, record.content_hash),
@@ -95,7 +136,6 @@ function buildContentSummary(config, record) {
     fileSize: record.file_size,
     localFileExists: record.type === 'file' ? record.local_file_exists !== false : true,
     isShared: record.is_shared,
-    createdAt: record.created,
     updatedAt: record.updated
   };
 }
@@ -165,6 +205,10 @@ function isHashConflict(error) {
   }
 
   return true;
+}
+
+function isRecordNotFound(error) {
+  return error?.status === 404 || error?.diagnostic?.pocketbaseStatus === 404;
 }
 
 async function createContentWithRetry(createRecord) {
@@ -308,7 +352,7 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
 
       return record;
     } catch (error) {
-      if (error.status === 404) {
+      if (isRecordNotFound(error)) {
         const notFoundError = new Error('Content not found.');
         notFoundError.statusCode = 404;
         notFoundError.code = 'content_not_found';
@@ -322,15 +366,15 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs }) 
   async function createHtmlContent({ ownerUserId, title, htmlContent }) {
     const normalizedTitle = normalizeTitle(title);
 
-    if (!normalizedTitle) {
-      const error = new Error('title is required for rich text content.');
+    if (typeof htmlContent !== 'string') {
+      const error = new Error('htmlContent must be a string.');
       error.statusCode = 400;
       error.code = 'invalid_html_payload';
       throw error;
     }
 
-    if (typeof htmlContent !== 'string') {
-      const error = new Error('htmlContent must be a string.');
+    if (!htmlContent.trim()) {
+      const error = new Error('body is required for rich text content.');
       error.statusCode = 400;
       error.code = 'invalid_html_payload';
       throw error;

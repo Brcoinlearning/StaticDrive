@@ -178,6 +178,7 @@ Phase 2 的稳定化证据见：
 
 写接口：
 
+- `POST /api/write/content`
 - `POST /api/write/html`
 - `POST /api/write/file`
 - `POST /api/write/share`
@@ -186,6 +187,7 @@ Phase 2 的稳定化证据见：
 
 查询接口：
 
+- `GET /api/query/content/:contentId`
 - `GET /api/query/list`
 - `GET /api/query/search`
 - `GET /api/query/detail/:contentId`
@@ -217,6 +219,29 @@ public 接口：
 4. 打开 `/web/public/list`、`/web/public/search?q=关键词`，再进入公开详情页。
 5. 验证 `/api/public/content/:contentHash` 或 `/api/public/share/:shareHash` 返回真实文件下载而不是 JSON。
 6. 执行 `/api/write/share/revoke` 和 `/api/write/delete`，观察 public 状态变化。
+
+## P5 第一阶段演示脚本
+
+如果你要演示本轮新增的 `content` 语义写入、查询、列表增强与 `rich_text` 公开详情复用，可以按下面顺序运行：
+
+```bash
+./scripts/p5_demo_step1_write_content.sh
+./scripts/p5_demo_step2_query_and_share.sh
+./scripts/p5_demo_step3_print_access_info.sh
+./scripts/p5_demo_step4_cleanup_content.sh
+```
+
+可选环境变量：
+
+- `P5_DEMO_API_KEY`
+- `P5_DEMO_API_HEADER`
+- `P5_DEMO_SERVICE_BASE_URL`
+- `P5_DEMO_OWNER_WEB_BASE_URL`
+- `P5_DEMO_PUBLIC_WEB_BASE_URL`
+- `P5_DEMO_TITLE`
+- `P5_DEMO_BODY`
+
+这些脚本会在 `.demo-state/p5_content_demo.env` 中保存中间状态，便于分步演示和最终清理。
 
 ## Docker Desktop 本机部署
 

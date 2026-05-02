@@ -640,6 +640,12 @@ function renderItemCard(item) {
   const localFileWarning = item.type === 'file' && item.localFileExists === false
     ? '<p><strong>本地文件缺失</strong>，请重新上传或删除该记录。</p>'
     : '';
+  const displayTitle = item.title || item.originalFilename || '未命名内容';
+  const summaryLine = item.summary
+    ? `<p>${escapeHtml(item.summary)}</p>`
+    : '<p>暂无正文摘要。</p>';
+  const authorLine = `作者：${escapeHtml(item.authorName || '未提供')}`;
+  const createdAtLine = `创建时间：${escapeHtml(item.createdAt || '未提供')}`;
   const filenameLine = item.originalFilename
     ? `<p>源文件：${escapeHtml(item.originalFilename)}</p>`
     : '<p>富文本内容，无原始文件。</p>';
@@ -648,12 +654,15 @@ function renderItemCard(item) {
     <div class="card-head">
       <div class="card-title">
         <div class="badge-row"><span class="badge">${escapeHtml(item.type === 'rich_text' ? 'Rich Text' : 'File')}</span>${sharedBadge}</div>
-        <h2><a href="/web/detail/${encodeURIComponent(item.contentId)}">${escapeHtml(item.title || item.originalFilename || '未命名内容')}</a></h2>
+        <h2><a href="/web/detail/${encodeURIComponent(item.contentId)}">${escapeHtml(displayTitle)}</a></h2>
       </div>
     </div>
+    ${summaryLine}
     ${filenameLine}
     ${localFileWarning}
     <div class="meta">
+      <span>${authorLine}</span>
+      <span>${createdAtLine}</span>
       <span>内容 ID：${escapeHtml(item.contentId)}</span>
       <span>MIME：${escapeHtml(item.mimeType || '-')}</span>
       <span>大小：${escapeHtml(formatFileSize(item.fileSize))}</span>

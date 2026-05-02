@@ -65,6 +65,113 @@ test('write/html creates unified rich_text content record', async () => {
   assert.equal(response.body.accessUrl, `http://127.0.0.1:8787/api/public/content/${response.body.contentHash}`);
 });
 
+test('write/html accepts empty title and keeps body as the only required content field', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-html-optional-title'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.title, '');
+        assert.equal(record.html_content, '<p>body only</p>');
+        return { id: 'content_optional_title' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/html',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: '   ',
+      htmlContent: '<p>body only</p>'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.body.contentId, 'content_optional_title');
+});
+
+test('write/content accepts unified content payload and reuses rich_text write chain', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.owner_user_id, 'user_123');
+        assert.equal(record.type, 'rich_text');
+        assert.equal(record.title, 'Unified Title');
+        assert.equal(record.html_content, '<article><p>Unified Body</p></article>');
+        assert.equal(Object.hasOwn(record, 'author_name'), false);
+        assert.equal(Object.hasOwn(record, 'created_at'), false);
+        return { id: 'content_from_content_api' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Unified Title',
+      body: '<article><p>Unified Body</p></article>',
+      authorName: 'Ignored Author',
+      createdAt: '2020-01-01T00:00:00.000Z'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.body.contentId, 'content_from_content_api');
+  assert.equal(response.body.type, 'rich_text');
+});
+
+test('write/content rejects missing body', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-missing-body'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'No Body',
+      body: '   '
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.error, 'bad_request');
+});
+
 test('write/file persists file and creates unified file content record', async () => {
   const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shutong49-file-'));
   const app = createApp(createConfig(workspaceDir), {
@@ -133,7 +240,7 @@ test('write/file removes physical file when metadata write fails', async () => {
   assert.deepEqual(fs.readdirSync(leafDir), []);
 });
 
-test('write/html rejects missing title', async () => {
+test('write/html rejects missing body', async () => {
   const app = createApp(createConfig('/tmp/shutong49-test-html-missing-title'), {
     pocketbaseClient: {
       async findUserByApiKey() {
@@ -154,7 +261,7 @@ test('write/html rejects missing title', async () => {
       'x-shutong49-api-key': 'valid-key'
     },
     body: {
-      title: '   ',
+      title: 'Body Missing',
       htmlContent: ''
     }
   }), response);
@@ -357,6 +464,9 @@ test('query/list returns owner-scoped content summaries', async () => {
     contentId: 'content_10',
     type: 'file',
     title: 'Quarterly Report',
+    body: '',
+    authorName: null,
+    summary: '',
     originalFilename: 'report.pdf',
     contentHash: 'abcd1234abcd1234abcd1234abcd1234',
     accessUrl: 'http://127.0.0.1:8787/api/public/content/abcd1234abcd1234abcd1234abcd1234',
@@ -623,6 +733,252 @@ test('query/detail returns owner-scoped content detail', async () => {
   assert.equal(response.body.htmlContent, '<p>Detail</p>');
 });
 
+test('query/content returns unified content object detail via content semantic route', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-query-content-detail'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById(contentId) {
+        assert.equal(contentId, 'content_content_1');
+        return {
+          id: 'content_content_1',
+          owner_user_id: 'user_123',
+          expand: {
+            owner_user_id: {
+              display_name: 'Alice'
+            }
+          },
+          type: 'rich_text',
+          title: 'Content Route Detail',
+          original_filename: '',
+          content_hash: 'contentroutehash1234contentroute',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          html_content: '<article><p>Route body</p></article>',
+          is_shared: true,
+          created: '2026-05-01 12:00:00.000Z',
+          updated: '2026-05-01 12:05:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/api/query/content/content_content_1',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.contentId, 'content_content_1');
+  assert.equal(response.body.title, 'Content Route Detail');
+  assert.equal(response.body.body, '<article><p>Route body</p></article>');
+  assert.equal(response.body.authorName, 'Alice');
+  assert.equal(response.body.summary, 'Route body');
+});
+
+test('query/content returns not found for missing content record', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-query-content-missing'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        const error = new Error('missing');
+        error.status = 404;
+        throw error;
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/api/query/content/missing_content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.body.error, 'not_found');
+});
+
+test('query/content maps wrapped PocketBase 404 into not found response', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-query-content-missing-wrapped'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        const error = new Error('PocketBase request failed during get_content_by_id.');
+        error.statusCode = 502;
+        error.code = 'pocketbase_request_failed';
+        error.diagnostic = {
+          operation: 'get_content_by_id',
+          pocketbaseStatus: 404
+        };
+        throw error;
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/api/query/content/missing_content_wrapped',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.body.error, 'not_found');
+});
+
+test('content service exposes unified rich_text content object mapping', async () => {
+  const contentService = createContentService({
+    config: createConfig('/tmp/shutong49-content-object-detail'),
+    pocketbaseClient: {
+      async getContentById() {
+        return {
+          id: 'content_object_1',
+          owner_user_id: 'user_123',
+          expand: {
+            owner_user_id: {
+              display_name: 'Alice'
+            }
+          },
+          type: 'rich_text',
+          title: 'Mapped Detail',
+          original_filename: '',
+          content_hash: 'mappedhash1234mappedhash1234abcd',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          html_content: '<article><p>Hello <strong>world</strong>.</p></article>',
+          is_shared: false,
+          created: '2026-05-01 09:30:00.000Z',
+          updated: '2026-05-01 09:35:00.000Z'
+        };
+      }
+    }
+  });
+
+  const detail = await contentService.getContentDetail({
+    ownerUserId: 'user_123',
+    contentId: 'content_object_1'
+  });
+
+  assert.equal(detail.title, 'Mapped Detail');
+  assert.equal(detail.body, '<article><p>Hello <strong>world</strong>.</p></article>');
+  assert.equal(detail.authorName, 'Alice');
+  assert.equal(detail.createdAt, '2026-05-01 09:30:00.000Z');
+  assert.equal(detail.summary, 'Hello world.');
+  assert.equal(detail.htmlContent, '<article><p>Hello <strong>world</strong>.</p></article>');
+});
+
+test('content service keeps createdAt sourced from record created and ignores caller createdAt override', async () => {
+  const writes = [];
+  const contentService = createContentService({
+    config: createConfig('/tmp/shutong49-content-object-create'),
+    pocketbaseClient: {
+      async createContent(record) {
+        writes.push(record);
+        return { id: 'content_created_at_1' };
+      }
+    }
+  });
+
+  await contentService.createHtmlContent({
+    ownerUserId: 'user_123',
+    title: 'CreatedAt Mapping',
+    htmlContent: '<p>body</p>',
+    createdAt: '2020-01-01T00:00:00.000Z',
+    authorName: 'Ignored Author'
+  });
+
+  assert.equal(writes.length, 1);
+  assert.equal(Object.hasOwn(writes[0], 'created'), false);
+  assert.equal(Object.hasOwn(writes[0], 'created_at'), false);
+  assert.equal(Object.hasOwn(writes[0], 'author_name'), false);
+});
+
+test('query/list derives summary from rich text body and authorName from owner display name', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-query-list-content-object'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async listContents({ ownerUserId, search }) {
+        assert.equal(ownerUserId, 'user_123');
+        assert.equal(search, '');
+        return {
+          page: 1,
+          perPage: 20,
+          totalItems: 1,
+          totalPages: 1,
+          items: [{
+            id: 'content_rich_1',
+            owner_user_id: 'user_123',
+            expand: {
+              owner_user_id: {
+                display_name: 'Alice'
+              }
+            },
+            type: 'rich_text',
+            title: '',
+            original_filename: '',
+            content_hash: 'richsummary1234richsummary1234ab',
+            storage_path: '',
+            mime_type: 'text/html',
+            file_size: 0,
+            html_content: '<h1>Ignored</h1><p>First line</p><p>Second line</p>',
+            is_shared: false,
+            created: '2026-05-01 10:00:00.000Z',
+            updated: '2026-05-01 10:05:00.000Z'
+          }]
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/api/query/list',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.items[0].body, '<h1>Ignored</h1><p>First line</p><p>Second line</p>');
+  assert.equal(response.body.items[0].authorName, 'Alice');
+  assert.equal(response.body.items[0].summary, 'Ignored First line Second line');
+});
+
 test('query/detail blocks cross-user content access', async () => {
   const app = createApp(createConfig('/tmp/shutong49-query-detail-forbidden'), {
     pocketbaseClient: {
@@ -785,6 +1141,11 @@ test('web/list renders owner content list page with action-oriented layout', asy
           items: [{
             id: 'content_page_1',
             owner_user_id: 'user_123',
+            expand: {
+              owner_user_id: {
+                display_name: 'Alice'
+              }
+            },
             type: 'rich_text',
             title: '网页层内容',
             original_filename: '',
@@ -819,8 +1180,67 @@ test('web/list renders owner content list page with action-oriented layout', asy
   assert.match(response.headers['content-type'], /text\/html/);
   assert.match(response.rawBody, /Owner 内容列表/);
   assert.match(response.rawBody, /网页层内容/);
+  assert.match(response.rawBody, /body/);
+  assert.match(response.rawBody, /Alice/);
+  assert.match(response.rawBody, /2026-04-18 14:00:00.000Z/);
   assert.match(response.rawBody, /查看详情/);
   assert.match(response.rawBody, /打开公开页/);
+});
+
+test('web/list falls back when title is empty and still renders summary metadata', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-list-empty-title'), {
+    contentService: {
+      async listContents() {
+        return {
+          page: 1,
+          perPage: 20,
+          totalItems: 1,
+          totalPages: 1,
+          items: [{
+            contentId: 'content_empty_title_1',
+            type: 'rich_text',
+            title: '',
+            body: '<p>Fallback body</p>',
+            summary: 'Fallback body',
+            authorName: null,
+            originalFilename: '',
+            contentHash: 'emptytitlehash1234emptytitlehash',
+            accessUrl: 'http://127.0.0.1:8787/api/public/content/emptytitlehash1234emptytitlehash',
+            mimeType: 'text/html',
+            fileSize: 0,
+            localFileExists: true,
+            isShared: false,
+            createdAt: '2026-05-01 16:00:00.000Z',
+            updatedAt: '2026-05-01 16:00:00.000Z'
+          }]
+        };
+      }
+    },
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/list',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /未命名内容/);
+  assert.match(response.rawBody, /Fallback body/);
+  assert.match(response.rawBody, /作者：未提供/);
+  assert.match(response.rawBody, /创建时间：2026-05-01 16:00:00.000Z/);
 });
 
 test('web/list marks owner file records whose local file is missing', async () => {

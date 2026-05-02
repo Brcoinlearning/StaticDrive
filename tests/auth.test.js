@@ -209,7 +209,7 @@ test('PocketBaseClient builds owner-scoped content list query with search filter
   await client.listContents({ ownerUserId: 'user_123', page: 1, perPage: 10, search: '季度 报告' });
 
   assert.equal(calls.length, 2);
-  assert.match(calls[1].url, /contents\/records\?page=1&perPage=10&sort=-created&filter=/);
+  assert.match(calls[1].url, /contents\/records\?page=1&perPage=10&sort=-created&expand=owner_user_id&filter=/);
   assert.match(decodeURIComponent(calls[1].url), /owner_user_id = "user_123"/);
   assert.match(decodeURIComponent(calls[1].url), /title ~ "季度 报告"/);
   assert.match(decodeURIComponent(calls[1].url), /original_filename ~ "季度 报告"/);
@@ -243,7 +243,7 @@ test('PocketBaseClient fetches content detail by record id', async () => {
 
   assert.equal(content.id, 'content_123');
   assert.equal(calls.length, 2);
-  assert.equal(calls[1].url, 'http://127.0.0.1:8090/api/collections/contents/records/content_123');
+  assert.equal(calls[1].url, 'http://127.0.0.1:8090/api/collections/contents/records/content_123?expand=owner_user_id');
   assert.equal(calls[1].options.headers.authorization, 'pb_admin_token');
 });
 

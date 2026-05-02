@@ -657,6 +657,19 @@ export function createApp(config, dependencies = {}) {
           return;
         }
 
+        if (url.pathname === '/api/write/content') {
+          const result = await contentService.createHtmlContent({
+            ownerUserId: authContext.user.id,
+            title: body.title,
+            htmlContent: body.body,
+            authorName: body.authorName,
+            createdAt: body.createdAt
+          });
+
+          json(response, 201, result);
+          return;
+        }
+
         if (url.pathname === '/api/write/file') {
           const result = await contentService.createFileContent({
             ownerUserId: authContext.user.id,
@@ -765,6 +778,17 @@ export function createApp(config, dependencies = {}) {
 
         if (url.pathname.startsWith('/api/query/detail/')) {
           const contentId = url.pathname.slice('/api/query/detail/'.length);
+          const result = await contentService.getContentDetail({
+            ownerUserId: authContext.user.id,
+            contentId
+          });
+
+          json(response, 200, result);
+          return;
+        }
+
+        if (url.pathname.startsWith('/api/query/content/')) {
+          const contentId = url.pathname.slice('/api/query/content/'.length);
           const result = await contentService.getContentDetail({
             ownerUserId: authContext.user.id,
             contentId
