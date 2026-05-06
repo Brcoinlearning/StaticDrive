@@ -21,14 +21,39 @@ P5_DEMO_BODY="${P5_DEMO_BODY:-$(cat <<'BODYEOF'
 - [x] 已完成：支持 task list
 - [x] 已完成：支持裸链接自动识别
 - [x] 已完成：支持标准图片、表格、代码块
+- [x] 已完成：支持多行引用合并
 - [ ] 待扩展：更复杂的 Markdown 方言
 
-裸链接：https://example.com/docs/markdown-agent-demo
+嵌套任务：
+- [x] 父任务
+  - [ ] 子任务
+- [ ] 邻接任务
+
+多级列表：
+- 平台层
+  - 服务层
+    - 渲染器
+
+混合列表：
+1. 设计输入
+   - 明确边界
+2. 生成输出
+
+裸链接边界：
+- 常规： https://example.com/docs/markdown-agent-demo
+- 尾标点： https://example.com/docs.
+- 括号包裹： (https://example.com/a)
 
 引用：
 > 这是一个面向技术内容演示的通用 Markdown 样例。
+> 第二行用于验证多行引用会合并展示。
 
 行内公式：$E = mc^2$
+
+块公式：
+$$
+f(x) = x^2 + 2x + 1
+$$
 
 表格：
 
@@ -38,6 +63,19 @@ P5_DEMO_BODY="${P5_DEMO_BODY:-$(cat <<'BODYEOF'
 | 裸链接 | 已支持 | 自动转为超链接 |
 | 代码块 | 已支持 | 支持语言类名 |
 | 数学公式 | 已支持 | 预览页可排版 |
+
+表格转义：
+
+| 字段 | 示例 |
+| --- | --- |
+| escaped pipe | a \| b |
+
+代码块：
+
+```js
+const pipeline = ['ingest', 'render', 'publish'];
+console.log(pipeline.join(' -> '));
+```
 
 标准图片：
 
@@ -51,20 +89,23 @@ ensure_p5_demo_state_dir() {
 
 save_p5_demo_state() {
   ensure_p5_demo_state_dir
+  shell_quote() {
+    printf '%q' "$1"
+  }
   cat > "$P5_DEMO_STATE_FILE" <<EOFSTATE
-P5_DEMO_API_KEY='${P5_DEMO_API_KEY}'
-P5_DEMO_API_HEADER='${P5_DEMO_API_HEADER}'
-P5_DEMO_SERVICE_BASE_URL='${P5_DEMO_SERVICE_BASE_URL}'
-P5_DEMO_OWNER_WEB_BASE_URL='${P5_DEMO_OWNER_WEB_BASE_URL}'
-P5_DEMO_PUBLIC_WEB_BASE_URL='${P5_DEMO_PUBLIC_WEB_BASE_URL}'
-P5_DEMO_TITLE='${P5_DEMO_TITLE}'
-P5_DEMO_BODY_FORMAT='${P5_DEMO_BODY_FORMAT}'
-P5_DEMO_BODY='${P5_DEMO_BODY}'
-P5_CONTENT_ID='${P5_CONTENT_ID:-}'
-P5_CONTENT_HASH='${P5_CONTENT_HASH:-}'
-P5_ACCESS_URL='${P5_ACCESS_URL:-}'
-P5_SHARE_HASH='${P5_SHARE_HASH:-}'
-P5_SHARE_URL='${P5_SHARE_URL:-}'
+P5_DEMO_API_KEY=$(shell_quote "${P5_DEMO_API_KEY}")
+P5_DEMO_API_HEADER=$(shell_quote "${P5_DEMO_API_HEADER}")
+P5_DEMO_SERVICE_BASE_URL=$(shell_quote "${P5_DEMO_SERVICE_BASE_URL}")
+P5_DEMO_OWNER_WEB_BASE_URL=$(shell_quote "${P5_DEMO_OWNER_WEB_BASE_URL}")
+P5_DEMO_PUBLIC_WEB_BASE_URL=$(shell_quote "${P5_DEMO_PUBLIC_WEB_BASE_URL}")
+P5_DEMO_TITLE=$(shell_quote "${P5_DEMO_TITLE}")
+P5_DEMO_BODY_FORMAT=$(shell_quote "${P5_DEMO_BODY_FORMAT}")
+P5_DEMO_BODY=$(shell_quote "${P5_DEMO_BODY}")
+P5_CONTENT_ID=$(shell_quote "${P5_CONTENT_ID:-}")
+P5_CONTENT_HASH=$(shell_quote "${P5_CONTENT_HASH:-}")
+P5_ACCESS_URL=$(shell_quote "${P5_ACCESS_URL:-}")
+P5_SHARE_HASH=$(shell_quote "${P5_SHARE_HASH:-}")
+P5_SHARE_URL=$(shell_quote "${P5_SHARE_URL:-}")
 EOFSTATE
 }
 

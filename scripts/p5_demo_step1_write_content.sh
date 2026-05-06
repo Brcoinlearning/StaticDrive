@@ -50,6 +50,6 @@ save_p5_demo_state
 echo "[p5-demo-step1] content created: $P5_CONTENT_ID"
 echo "[p5-demo-step1] content hash: $P5_CONTENT_HASH"
 echo "[p5-demo-step1] content bodyFormat: $P5_DEMO_BODY_FORMAT"
-echo "[p5-demo-step1] sample covers: task-list, bare-url, nested-list, quote, code-block, table, image, inline-math, block-math"
+echo "[p5-demo-step1] sample covers: task-list, nested-task, multi-level-list, mixed-list, bare-url-boundary, multiline-quote, table-escape, code-block, image, inline-math, block-math"
 echo "[p5-demo-step1] empty title write: ok"
 echo "[p5-demo-step1] invalid body rejected with 400"
