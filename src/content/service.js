@@ -34,7 +34,18 @@ function renderMarkdownInline(value) {
     return stash(`<a href="${escapeHtml(href)}"${titleAttr}>${renderMarkdownInline(label)}</a>`);
   });
   output = output.replace(/\$([^$\n]+)\$/g, (_match) => stash(`<span class="math-inline">${_match}</span>`));
-  output = output.replace(/(^|\s)(https?:\/\/[^\s<>。，；：！？、（）【】《》]+)(?=$|[\s<>。，；：！？、（）【】《》])/g, (_match, prefix, href) => `${prefix}${stash(`<a href="${escapeHtml(href)}">${escapeHtml(href)}</a>`)}`);
+  output = output.replace(/(^|[\s(\[])(https?:\/\/[^\s<>"']+)/g, (_match, prefix, rawHref) => {
+    let href = rawHref;
+    let trailing = '';
+    while (/[),.!?;:。，“”！？；：]$/.test(href)) {
+      trailing = href.slice(-1) + trailing;
+      href = href.slice(0, -1);
+    }
+    if (!href) {
+      return _match;
+    }
+    return `${prefix}${stash(`<a href="${escapeHtml(href)}">${escapeHtml(href)}</a>`)}${escapeHtml(trailing)}`;
+  });
   output = output.replace(/`([^`]+)`/g, '<code>$1</code>');
   output = output.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   output = output.replace(/__([^_]+)__/g, '<strong>$1</strong>');
@@ -53,28 +64,97 @@ function flushMarkdownParagraph(lines, blocks) {
 }
 
 function renderMarkdownListItem(item) {
-  const nestedParts = item.split('__NESTED_UL__');
-  if (nestedParts.length > 1) {
-    return `<li>${renderMarkdownInline(nestedParts[0])}<ul><li>${renderMarkdownInline(nestedParts.slice(1).join('__NESTED_UL__'))}</li></ul></li>`;
-  }
-
-  const taskMatch = item.match(/^\[([ xX])\]\s+(.*)$/);
+  const taskMatch = item.text.match(/^\[([ xX])\]\s+(.*)$/);
   if (taskMatch) {
     const checked = taskMatch[1].toLowerCase() === 'x' ? ' checked' : '';
-    return `<li><input type="checkbox" disabled${checked}> ${renderMarkdownInline(taskMatch[2].trim())}</li>`;
+    const nested = item.children.map((list) => renderMarkdownList(list)).join('');
+    return `<li><input type="checkbox" disabled${checked}> ${renderMarkdownInline(taskMatch[2].trim())}${nested}</li>`;
   }
 
-  return `<li>${renderMarkdownInline(item)}</li>`;
+  const nested = item.children.map((list) => renderMarkdownList(list)).join('');
+  return `<li>${renderMarkdownInline(item.text)}${nested}</li>`;
 }
 
-function flushMarkdownList(items, ordered, blocks) {
-  if (items.length === 0) {
-    return;
+function renderMarkdownList(list) {
+  const tag = list.ordered ? 'ol' : 'ul';
+  return `<${tag}>${list.items.map((item) => renderMarkdownListItem(item)).join('')}</${tag}>`;
+}
+
+function parseMarkdownListLine(line) {
+  const match = line.match(/^(\s*)([-*]|\d+\.)\s+(.*)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    indent: match[1].replace(/\t/g, '    ').length,
+    ordered: /\d+\./.test(match[2]),
+    text: match[3].trim()
+  };
+}
+
+function parseMarkdownListBlock(lines, startIndex) {
+  let index = startIndex;
+  let root = null;
+  const stack = [];
+
+  while (index < lines.length) {
+    const parsed = parseMarkdownListLine(lines[index]);
+    if (!parsed) {
+      break;
+    }
+
+    const { indent, ordered, text } = parsed;
+
+    while (stack.length > 0 && indent < stack[stack.length - 1].indent) {
+      stack.pop();
+    }
+
+    if (!root) {
+      root = { ordered, items: [] };
+      stack.push({ indent, list: root, lastItem: null });
+    } else if (stack.length === 0) {
+      break;
+    }
+
+    let current = stack[stack.length - 1];
+
+    if (indent > current.indent) {
+      if (!current.lastItem) {
+        break;
+      }
+      const nestedList = { ordered, items: [] };
+      current.lastItem.children.push(nestedList);
+      current = { indent, list: nestedList, lastItem: null };
+      stack.push(current);
+    } else if (indent === current.indent && ordered !== current.list.ordered) {
+      if (stack.length === 1) {
+        break;
+      }
+      const parent = stack[stack.length - 2];
+      if (!parent.lastItem) {
+        break;
+      }
+      const siblingList = { ordered, items: [] };
+      parent.lastItem.children.push(siblingList);
+      current = { indent, list: siblingList, lastItem: null };
+      stack[stack.length - 1] = current;
+    }
+
+    const item = { text, children: [] };
+    current.list.items.push(item);
+    current.lastItem = item;
+    stack[stack.length - 1] = current;
+    index += 1;
   }
 
-  const tag = ordered ? 'ol' : 'ul';
-  blocks.push(`<${tag}>${items.map((item) => renderMarkdownListItem(item)).join('')}</${tag}>`);
-  items.length = 0;
+  if (!root || root.items.length === 0) {
+    return null;
+  }
+
+  return {
+    html: renderMarkdownList(root),
+    nextIndex: index - 1
+  };
 }
 
 function renderMarkdownTable(lines) {
@@ -82,7 +162,31 @@ function renderMarkdownTable(lines) {
     return null;
   }
 
-  const splitRow = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim());
+  const splitRow = (line) => {
+    const stripped = line.trim().replace(/^\||\|$/g, '');
+    const cells = [];
+    let current = '';
+    let escaped = false;
+    for (const ch of stripped) {
+      if (escaped) {
+        current += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === '|') {
+        cells.push(current.trim());
+        current = '';
+        continue;
+      }
+      current += ch;
+    }
+    cells.push(current.trim());
+    return cells;
+  };
   const header = splitRow(lines[0]);
   const divider = splitRow(lines[1]);
   if (header.length === 0 || divider.length !== header.length || !divider.every((cell) => /^[\s:-]+$/.test(cell) && /-/.test(cell))) {
@@ -112,15 +216,12 @@ function defaultMarkdownRenderer(markdown) {
   const lines = normalized.split('\n');
   const blocks = [];
   const paragraphLines = [];
-  const listItems = [];
-  let listOrdered = false;
   let inCodeBlock = false;
   let codeLines = [];
   let codeLanguage = '';
 
   function flushCurrentTextState() {
     flushMarkdownParagraph(paragraphLines, blocks);
-    flushMarkdownList(listItems, listOrdered, blocks);
   }
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -182,7 +283,26 @@ function defaultMarkdownRenderer(markdown) {
     const quoteMatch = trimmed.match(/^>\s?(.*)$/);
     if (quoteMatch) {
       flushCurrentTextState();
-      blocks.push(`<blockquote><p>${renderMarkdownInline(quoteMatch[1].trim())}</p></blockquote>`);
+      const quoteLines = [quoteMatch[1].trim()];
+      let cursor = index + 1;
+      while (cursor < lines.length) {
+        const nextMatch = lines[cursor].trim().match(/^>\s?(.*)$/);
+        if (!nextMatch) {
+          break;
+        }
+        quoteLines.push(nextMatch[1].trim());
+        cursor += 1;
+      }
+      blocks.push(`<blockquote><p>${quoteLines.map((value) => renderMarkdownInline(value)).join('<br>')}</p></blockquote>`);
+      index = cursor - 1;
+      continue;
+    }
+
+    const listBlock = parseMarkdownListBlock(lines, index);
+    if (listBlock) {
+      flushCurrentTextState();
+      blocks.push(listBlock.html);
+      index = listBlock.nextIndex;
       continue;
     }
 
@@ -202,39 +322,6 @@ function defaultMarkdownRenderer(markdown) {
       }
     }
 
-    const nestedUnorderedMatch = line.match(/^\s+[-*]\s+(.*)$/);
-    if (nestedUnorderedMatch && listItems.length > 0 && !listOrdered) {
-      const parent = listItems.pop();
-      const nestedItem = nestedUnorderedMatch[1].trim();
-      listItems.push(`${parent}__NESTED_UL__${nestedItem}`);
-      continue;
-    }
-
-    const unorderedMatch = trimmed.match(/^[-*]\s+(.*)$/);
-    if (unorderedMatch) {
-      flushMarkdownParagraph(paragraphLines, blocks);
-      if (listItems.length > 0 && listOrdered) {
-        flushMarkdownList(listItems, listOrdered, blocks);
-      }
-      listOrdered = false;
-      listItems.push(unorderedMatch[1].trim());
-      continue;
-    }
-
-    const orderedMatch = trimmed.match(/^\d+\.\s+(.*)$/);
-    if (orderedMatch) {
-      flushMarkdownParagraph(paragraphLines, blocks);
-      if (listItems.length > 0 && !listOrdered) {
-        flushMarkdownList(listItems, listOrdered, blocks);
-      }
-      listOrdered = true;
-      listItems.push(orderedMatch[1].trim());
-      continue;
-    }
-
-    if (listItems.length > 0) {
-      flushMarkdownList(listItems, listOrdered, blocks);
-    }
     paragraphLines.push(trimmed);
   }
 
@@ -244,7 +331,6 @@ function defaultMarkdownRenderer(markdown) {
   }
 
   flushMarkdownParagraph(paragraphLines, blocks);
-  flushMarkdownList(listItems, listOrdered, blocks);
   return blocks.join('');
 }
 

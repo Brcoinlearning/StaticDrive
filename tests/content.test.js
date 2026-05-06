@@ -415,6 +415,426 @@ test('write/content keeps nested list structure in markdown output', async () =>
   assert.equal(response.statusCode, 201);
 });
 
+test('write/content renders multi-level nested unordered list', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-nested-list-multi'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<ul><li>a<ul><li>b<ul><li>c</li></ul></li></ul></li></ul>');
+        return { id: 'content_markdown_nested_list_multi' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Nested List Multi',
+      body: '- a\n  - b\n    - c',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content renders mixed ordered and unordered nested list', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-mixed-list'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<ol><li>one<ul><li>child</li></ul></li><li>two</li></ol>');
+        return { id: 'content_markdown_mixed_list' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Mixed List',
+      body: '1. one\n   - child\n2. two',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content keeps multiple task items with nested task child', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-nested-task-list'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<ul><li><input type="checkbox" disabled checked> parent<ul><li><input type="checkbox" disabled> child</li></ul></li><li><input type="checkbox" disabled> sibling</li></ul>');
+        return { id: 'content_markdown_nested_task_list' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Nested Task List',
+      body: '- [x] parent\n  - [ ] child\n- [ ] sibling',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content parses table alignment markers without breaking cells', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-table-align'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>');
+        return { id: 'content_markdown_table_align' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Table Align',
+      body: '| a | b |\n| :- | -: |\n| 1 | 2 |',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content parses escaped pipe inside table cell', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-table-escaped-pipe'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<table><thead><tr><th>col</th></tr></thead><tbody><tr><td>a | b</td></tr></tbody></table>');
+        return { id: 'content_markdown_table_escaped_pipe' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Escaped Pipe',
+      body: '| col |\n| --- |\n| a \\| b |',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content renders multiline blockquote as single quote block', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-blockquote-multiline'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<blockquote><p>line1<br>line2</p></blockquote>');
+        return { id: 'content_markdown_blockquote_multiline' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Multiline Blockquote',
+      body: '> line1\n> line2',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content auto-link keeps trailing punctuation outside anchor', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-bare-url-trailing-punctuation'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<p>Docs: <a href="https://example.com/docs">https://example.com/docs</a>.</p>');
+        return { id: 'content_markdown_bare_url_trailing_punctuation' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Bare URL Trailing Punctuation',
+      body: 'Docs: https://example.com/docs.',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content auto-link handles parentheses boundary correctly', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-bare-url-parentheses'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<p>(<a href="https://example.com/a">https://example.com/a</a>)</p>');
+        return { id: 'content_markdown_bare_url_parentheses' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Bare URL Parentheses',
+      body: '(https://example.com/a)',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content escapes raw html script in markdown body', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-markdown-script'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>');
+        return { id: 'content_markdown_script_escaped' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Script Escaped',
+      body: '<script>alert(1)</script>',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content keeps fenced code block when closing fence missing', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-unclosed-fence'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<pre><code class="language-js">const a = 1;</code></pre>');
+        return { id: 'content_markdown_unclosed_fence' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Unclosed Fence',
+      body: '```js\nconst a = 1;',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content preserves markdown link with nested emphasis text', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-link-emphasis'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<p><a href="https://example.com"><strong>bold</strong> link</a></p>');
+        return { id: 'content_markdown_link_emphasis' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Link Emphasis',
+      body: '[**bold** link](https://example.com)',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content renders horizontal rule only for isolated marker line', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-non-isolated-hr'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<p>a --- b</p>');
+        return { id: 'content_markdown_non_isolated_hr' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Non Isolated HR',
+      body: 'a --- b',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
 test('write/content rejects markdown when rendering fails', async () => {
   const app = createApp(createConfig('/tmp/shutong49-test-write-content-markdown-fail'), {
     markdownRenderer() {
