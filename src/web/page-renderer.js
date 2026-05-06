@@ -24,6 +24,19 @@ function formatFileSize(value) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function buildPreviewSrcdoc(html, options = {}) {
+  const contentHtml = html || '';
+  const enableMath = options.enableMath === true && /math-inline|math-block/.test(contentHtml);
+  const mathStyles = enableMath
+    ? '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">'
+    : '';
+  const mathScripts = enableMath
+    ? '<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script><script>window.addEventListener("DOMContentLoaded",()=>{if(window.renderMathInElement){window.renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}]});}});</script>'
+    : '';
+  const previewHtml = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;padding:28px;color:#231a14;font:16px/1.75 Georgia,"Times New Roman",serif;background:#fff;}img{max-width:100%;height:auto;display:block;margin:18px auto;border-radius:14px;}p{margin:0 0 1em;}h1,h2,h3,h4,h5,h6{margin:1.2em 0 .55em;line-height:1.2;color:#1f1611;}ul,ol{padding-left:1.4rem;margin:0 0 1em;}blockquote{margin:1.2em 0;padding:14px 16px;border-left:4px solid #a34f28;background:rgba(163,79,40,.08);border-radius:0 12px 12px 0;}pre{overflow:auto;padding:16px;border-radius:14px;background:#f7f1e8;border:1px solid rgba(112,79,46,.16);}code{font-family:"SFMono-Regular",Menlo,monospace;font-size:.92em;}table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.95rem;}th,td{border:1px solid rgba(112,79,46,.18);padding:10px 12px;vertical-align:top;}th{background:#f7efe3;text-align:left;}hr{border:0;border-top:1px solid rgba(112,79,46,.18);margin:1.5em 0;}.math-inline,.math-block{font-family:"Times New Roman",serif;}.math-inline{display:inline;}.math-block{display:block;margin:1.2em 0;padding:14px 16px;border:1px solid rgba(112,79,46,.18);border-radius:14px;white-space:pre-wrap;overflow:auto;}li input[type="checkbox"]{margin-right:.5em;vertical-align:middle;accent-color:#a34f28;}.katex-display{overflow:auto;overflow-y:hidden;padding:.2rem 0;}a{color:#7e3919;text-decoration:none;}a:hover{text-decoration:underline;}</style>' + mathStyles + '</head><body>' + contentHtml + mathScripts + '</body></html>';
+  return escapeHtml(previewHtml);
+}
+
 function buildSearchAction(mode) {
   return mode === 'public' ? '/web/public/search' : '/web/search';
 }
@@ -293,6 +306,71 @@ function renderLayout({ title, heading, description, body, mode = 'owner', query
         gap: 16px;
       }
 
+      .cards.list-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .list-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 16px;
+        align-items: start;
+        padding: 14px 18px;
+      }
+
+      .list-row-body {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .list-row-body h3 {
+        font-size: 1.1rem;
+        margin: 0;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .list-row-body h3 a {
+        color: var(--accent-strong);
+      }
+
+      .list-row-body .badge-row {
+        margin-bottom: 2px;
+      }
+
+      .row-summary {
+        margin: 2px 0;
+        font-size: 0.92rem;
+        color: var(--muted);
+        line-height: 1.4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+
+      .row-meta {
+        font-size: 0.86rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .list-row-action {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
       .card {
         display: grid;
         gap: 14px;
@@ -410,6 +488,62 @@ function renderLayout({ title, heading, description, body, mode = 'owner', query
       textarea {
         min-height: 220px;
         resize: vertical;
+      }
+
+      .batch-toggle {
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .batch-toggle::before {
+        content: "▾";
+        display: inline-block;
+        font-size: 0.8rem;
+        transition: transform .2s;
+      }
+
+      .batch-toggle.collapsed::before {
+        content: "▸";
+      }
+
+      .batch-toggle.collapsed + .batch-panel-wrapper {
+        display: none;
+      }
+
+      .batch-header-bar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 16px;
+        border: 1px solid var(--line-strong);
+        background: var(--surface-strong);
+      }
+
+      .batch-select-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .batch-select-group strong {
+        font-size: 0.92rem;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+
+      .batch-select-group select {
+        width: auto;
+        min-width: 200px;
+      }
+
+      .batch-header-bar .action-row {
+        flex-shrink: 0;
       }
 
       .batch-item {
@@ -540,20 +674,21 @@ function renderFlash(flash) {
   return `<section class="flash ${tone}"><strong>${escapeHtml(flash.title || '操作已完成')}</strong><span>${escapeHtml(flash.message)}</span></section>`;
 }
 
-function renderToolbar({ totalItems, page, query, missingLocalFileOnly = false, backHref = '/web/list', backLabel = '返回全部内容' }) {
+function renderToolbar({ totalItems, page, query, missingLocalFileOnly = false, backHref = '/web/list', backLabel = '返回全部内容', layout = 'cards', toggleLayoutHref = '?layout=rows' }) {
   const summary = query
     ? `搜索“${query}”命中 ${totalItems} 条内容，第 ${page} 页。`
     : `当前共 ${totalItems} 条内容，第 ${page} 页。`;
   const filterForm = backHref === '/web/list'
     ? `<form method="get" action="/web/list" class="inline-form"><label><input type="checkbox" name="missingLocalFileOnly" value="1"${missingLocalFileOnly ? ' checked' : ''}> 仅看缺失本地文件</label><button type="submit" class="secondary">应用筛选</button></form>`
     : '';
+  const toggleLabel = layout === 'rows' ? '卡片视图' : '横条视图';
 
   return `<section class="toolbar">
     <div>
       <strong>内容总览</strong>
       <div class="muted">${escapeHtml(summary)}</div>
     </div>
-    <div class="action-row">${filterForm}<a class="btn secondary" href="${escapeHtml(backHref)}">${escapeHtml(backLabel)}</a></div>
+    <div class="action-row">${filterForm}<a class="btn secondary" href="${escapeHtml(toggleLayoutHref)}">${escapeHtml(toggleLabel)}</a><a class="btn secondary" href="${escapeHtml(backHref)}">${escapeHtml(backLabel)}</a></div>
   </section>`;
 }
 
@@ -562,45 +697,54 @@ function renderBatchPanel({ items, query = '', page = 1, missingLocalFileOnly = 
     return '';
   }
 
+  const batchId = `batch-${Math.random().toString(36).slice(2, 8)}`;
+
   return `<section class="panel">
-    <h3>批量操作</h3>
-    <form method="post" action="/web/action/batch" class="batch-panel">
-      ${query ? `<input type="hidden" name="query" value="${escapeHtml(query)}">` : ''}
-      <input type="hidden" name="page" value="${escapeHtml(page)}">
-      ${missingLocalFileOnly ? '<input type="hidden" name="missingLocalFileOnly" value="1">' : ''}
-      <div class="field-stack">
-        <label for="batchAction"><strong>批量动作</strong></label>
-        <select id="batchAction" name="batchAction">
-          <option value="share">批量分享</option>
-          <option value="share_revoke">批量撤销分享</option>
-          <option value="delete">批量删除</option>
-          <option value="cleanup_missing_file_records">清理缺失文件记录</option>
-        </select>
-      </div>
-      <div class="action-row">
-        <button type="button" class="secondary" data-batch-toggle="all">全选当前页</button>
-        <button type="button" class="secondary" data-batch-toggle="none">清空选择</button>
-        <span class="subtle-note">当前批量选择只作用于本页已加载的记录。</span>
-      </div>
-      <div class="field-stack">
-        ${items.map((item) => `<label class="batch-item"><input type="checkbox" name="contentIds" value="${escapeHtml(item.contentId)}"><span><strong>${escapeHtml(item.title || item.originalFilename || '未命名内容')}</strong><span class="subtle-note">${escapeHtml(item.contentId)} · ${escapeHtml(item.type === 'rich_text' ? '富文本' : '文件')} · ${escapeHtml(item.isShared ? '已公开' : '未公开')}</span></span></label>`).join('')}
-      </div>
-      <div class="action-row">
-        <button type="submit">执行批量操作</button>
-        <span class="subtle-note">批量删除会直接删除内容；批量分享与批量撤销分享会逐条复用现有写路径。</span>
-      </div>
-    </form>
+    <h3 class="batch-toggle" id="${batchId}-toggle">批量操作</h3>
+    <div class="batch-panel-wrapper">
+      <form method="post" action="/web/action/batch" class="batch-panel">
+        ${query ? `<input type="hidden" name="query" value="${escapeHtml(query)}">` : ''}
+        <input type="hidden" name="page" value="${escapeHtml(page)}">
+        ${missingLocalFileOnly ? '<input type="hidden" name="missingLocalFileOnly" value="1">' : ''}
+        <div class="batch-header-bar">
+          <div class="action-row">
+            <button type="button" class="secondary" data-batch-toggle="all">全选当前页</button>
+            <button type="button" class="secondary" data-batch-toggle="none">清空选择</button>
+            <span class="subtle-note">本页已加载的记录</span>
+          </div>
+          <div class="batch-select-group">
+            <strong>批量动作</strong>
+            <select id="batchAction" name="batchAction">
+              <option value="share">批量分享</option>
+              <option value="share_revoke">批量撤销分享</option>
+              <option value="delete">批量删除</option>
+              <option value="cleanup_missing_file_records">清理缺失文件记录</option>
+            </select>
+            <button type="submit">执行</button>
+          </div>
+        </div>
+        <div class="field-stack">
+          ${items.map((item) => `<label class="batch-item"><input type="checkbox" name="contentIds" value="${escapeHtml(item.contentId)}"><span><strong>${escapeHtml(item.title || item.originalFilename || '未命名内容')}</strong><span class="subtle-note">${escapeHtml(item.contentId)} · ${escapeHtml(item.type === 'rich_text' ? '富文本' : '文件')} · ${escapeHtml(item.isShared ? '已公开' : '未公开')}</span></span></label>`).join('')}
+        </div>
+      </form>
+    </div>
     <script>
       (() => {
-        const root = document.currentScript?.previousElementSibling?.previousElementSibling?.closest('form.batch-panel')
-          ?? document.currentScript?.previousElementSibling?.closest('form.batch-panel')
-          ?? document.currentScript?.parentElement?.querySelector('form.batch-panel');
-        if (!root) return;
-        const checkboxes = Array.from(root.querySelectorAll('input[name="contentIds"][type="checkbox"]'));
-        root.querySelector('[data-batch-toggle="all"]')?.addEventListener('click', () => {
+        const panel = document.currentScript?.parentElement;
+        if (!panel) return;
+        const toggle = panel.querySelector('.batch-toggle');
+        const form = panel.querySelector('form.batch-panel');
+        if (!toggle || !form) return;
+
+        toggle.addEventListener('click', () => {
+          toggle.classList.toggle('collapsed');
+        });
+
+        const checkboxes = Array.from(form.querySelectorAll('input[name="contentIds"][type="checkbox"]'));
+        form.querySelector('[data-batch-toggle="all"]')?.addEventListener('click', () => {
           for (const checkbox of checkboxes) checkbox.checked = true;
         });
-        root.querySelector('[data-batch-toggle="none"]')?.addEventListener('click', () => {
+        form.querySelector('[data-batch-toggle="none"]')?.addEventListener('click', () => {
           for (const checkbox of checkboxes) checkbox.checked = false;
         });
       })();
@@ -674,18 +818,85 @@ function renderItemCard(item) {
   </article>`;
 }
 
+function renderItemRow(item) {
+  const sharedBadge = item.isShared
+    ? '<span class="badge shared">已公开</span>'
+    : '<span class="badge private">未公开</span>';
+  const displayTitle = item.title || item.originalFilename || '未命名内容';
+  const summaryLine = item.summary
+    ? `<p class="row-summary">${escapeHtml(item.summary)}</p>`
+    : '';
+  const authorLine = item.authorName ? `作者：${escapeHtml(item.authorName)}` : '';
+  const createdAtLine = item.createdAt ? `创建：${escapeHtml(item.createdAt)}` : '';
+
+  return `<article class="card list-row">
+    <div class="list-row-body">
+      <div class="badge-row"><span class="badge">${escapeHtml(item.type === 'rich_text' ? 'Rich Text' : 'File')}</span>${sharedBadge}</div>
+      <h3><a href="/web/detail/${encodeURIComponent(item.contentId)}">${escapeHtml(displayTitle)}</a></h3>
+      ${summaryLine}
+      <div class="meta row-meta">
+        ${authorLine ? `<span>${authorLine}</span>` : ''}
+        ${createdAtLine ? `<span>${createdAtLine}</span>` : ''}
+        <span>大小：${escapeHtml(formatFileSize(item.fileSize))}</span>
+      </div>
+    </div>
+    <div class="list-row-action">
+      <a class="btn secondary" href="/web/detail/${encodeURIComponent(item.contentId)}">查看详情</a>
+      ${item.isShared ? `<a class="supporting-link" href="/web/public/content/${encodeURIComponent(item.contentHash)}">公开页</a>` : '<span class="muted">未公开</span>'}
+    </div>
+  </article>`;
+}
+
+function renderPublicItemRow(item) {
+  const displayTitle = item.title || item.originalFilename || '未命名内容';
+  const summaryLine = item.summary
+    ? `<p class="row-summary">${escapeHtml(item.summary)}</p>`
+    : '';
+  const typeLabel = item.type === 'rich_text' ? '公开富文本' : '公开文件';
+  const createdAtLine = item.createdAt ? `创建：${escapeHtml(item.createdAt)}` : '';
+  const updatedAtLine = item.updatedAt ? `更新：${escapeHtml(item.updatedAt)}` : '';
+
+  return `<article class="card list-row">
+    <div class="list-row-body">
+      <div class="badge-row"><span class="badge">${escapeHtml(typeLabel)}</span></div>
+      <h3><a href="${escapeHtml(item.publicPageUrl)}">${escapeHtml(displayTitle)}</a></h3>
+      ${summaryLine}
+      <div class="meta row-meta">
+        ${createdAtLine ? `<span>${createdAtLine}</span>` : ''}
+        ${updatedAtLine ? `<span>${updatedAtLine}</span>` : ''}
+        <span>大小：${escapeHtml(formatFileSize(item.fileSize))}</span>
+      </div>
+    </div>
+    <div class="list-row-action">
+      <a class="btn secondary" href="${escapeHtml(item.publicPageUrl)}">查看详情</a>
+    </div>
+  </article>`;
+}
+
 function renderPublicItemCard(item) {
-  const fileName = item.originalFilename ? `<p>源文件：${escapeHtml(item.originalFilename)}</p>` : '<p>公开富文本内容。</p>';
+  const displayTitle = item.title || item.originalFilename || '未命名内容';
+  const summaryLine = item.summary
+    ? `<p>${escapeHtml(item.summary)}</p>`
+    : '<p>暂无正文摘要。</p>';
+  const typeLabel = item.type === 'rich_text' ? '公开富文本' : '公开文件';
+  const subLine = item.type === 'rich_text'
+    ? `<p>富文本内容，正文格式：${escapeHtml(item.bodyFormat || 'html')}</p>`
+    : (item.originalFilename ? `<p>源文件：${escapeHtml(item.originalFilename)}</p>` : '');
+  const createdAtLine = item.createdAt ? `创建时间：${escapeHtml(item.createdAt)}` : '';
+  const updatedAtLine = item.updatedAt ? `更新时间：${escapeHtml(item.updatedAt)}` : '';
+
   return `<article class="card">
     <div class="card-head">
       <div class="card-title">
-        <div class="badge-row"><span class="badge">${escapeHtml(item.type === 'rich_text' ? '公开富文本' : '公开文件')}</span></div>
-        <h2><a href="${escapeHtml(item.publicPageUrl)}">${escapeHtml(item.title || item.originalFilename || '未命名内容')}</a></h2>
+        <div class="badge-row"><span class="badge">${escapeHtml(typeLabel)}</span></div>
+        <h2><a href="${escapeHtml(item.publicPageUrl)}">${escapeHtml(displayTitle)}</a></h2>
       </div>
     </div>
-    ${fileName}
+    ${summaryLine}
+    ${subLine}
     <div class="meta">
-      <span>Hash：${escapeHtml(item.contentHash)}</span>
+      ${createdAtLine ? `<span>${createdAtLine}</span>` : ''}
+      ${updatedAtLine ? `<span>${updatedAtLine}</span>` : ''}
       <span>MIME：${escapeHtml(item.mimeType || '-')}</span>
       <span>大小：${escapeHtml(formatFileSize(item.fileSize))}</span>
     </div>
@@ -732,8 +943,8 @@ function renderOwnerActionPanel(detail) {
           <a class="supporting-link" href="/web/public/content/${encodeURIComponent(detail.contentHash)}">打开内容公开页</a>
         </div>
         <div>
-          <strong>直接访问地址</strong>
-          <a class="supporting-link" href="${escapeHtml(detail.accessUrl)}">打开原始公开接口</a>
+          <strong>原始接口地址</strong>
+          <a class="supporting-link" href="${escapeHtml(detail.publicApiUrl || detail.accessUrl)}">打开原始公开接口</a>
         </div>
       </div>`
     : '<p class="muted">当前内容未公开，外部用户无法访问。</p>';
@@ -751,9 +962,21 @@ function renderOwnerActionPanel(detail) {
   </section>`;
 }
 
+function buildLayoutToggleHref(currentHref, currentLayout) {
+  const nextLayout = currentLayout === 'rows' ? 'cards' : 'rows';
+  const q = currentHref.includes('?') ? currentHref.split('?')[1] : '';
+  const params = new URLSearchParams(q);
+  params.delete('layout');
+  params.set('layout', nextLayout);
+  return '?' + params.toString();
+}
+
 export function renderOwnerListPage(payload) {
+  const layout = payload.layout || 'cards';
+  const sectionClass = layout === 'rows' ? 'cards list-rows' : 'cards';
+  const renderFn = layout === 'rows' ? renderItemRow : renderItemCard;
   const cards = payload.items.length > 0
-    ? `<section class="cards">${payload.items.map(renderItemCard).join('')}</section>`
+    ? `<section class="${sectionClass}">${payload.items.map(renderFn).join('')}</section>`
     : '<section class="empty">当前还没有内容。你可以先通过 Open API 写入文件或富文本，再回到这里查看。</section>';
 
   return renderLayout({
@@ -761,13 +984,17 @@ export function renderOwnerListPage(payload) {
     heading: 'Owner 内容列表',
     description: '这里是 owner 侧的主入口。你可以浏览已写入内容、确认公开状态，并进入详情页继续执行分享、撤销分享、更新或删除。',
     mode: 'owner',
-    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
+    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly, layout, toggleLayoutHref: `?layout=${layout === 'rows' ? 'cards' : 'rows'}` })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
   });
 }
 
 export function renderOwnerSearchPage(payload) {
+  const layout = payload.layout || 'cards';
+  const sectionClass = layout === 'rows' ? 'cards list-rows' : 'cards';
+  const renderFn = layout === 'rows' ? renderItemRow : renderItemCard;
+  const toggleHref = buildLayoutToggleHref(`/web/search?q=${encodeURIComponent(payload.query || '')}`, layout);
   const cards = payload.items.length > 0
-    ? `<section class="cards">${payload.items.map(renderItemCard).join('')}</section>`
+    ? `<section class="${sectionClass}">${payload.items.map(renderFn).join('')}</section>`
     : `<section class="empty">没有匹配“${escapeHtml(payload.query)}”的内容。你可以调整关键词，或返回全部内容列表继续查看。</section>`;
 
   return renderLayout({
@@ -776,13 +1003,16 @@ export function renderOwnerSearchPage(payload) {
     description: payload.query ? `当前展示与“${payload.query}”相关的 owner 内容。` : '未提供关键词，显示默认结果。',
     mode: 'owner',
     query: payload.query,
-    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, missingLocalFileOnly: payload.missingLocalFileOnly, backHref: '/web/list' })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, query: payload.query, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
+    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, missingLocalFileOnly: payload.missingLocalFileOnly, backHref: '/web/list', layout, toggleLayoutHref: toggleHref })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, query: payload.query, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
   });
 }
 
 export function renderPublicListPage(payload) {
+  const layout = payload.layout || 'cards';
+  const sectionClass = layout === 'rows' ? 'cards list-rows' : 'cards';
+  const renderFn = layout === 'rows' ? renderPublicItemRow : renderPublicItemCard;
   const cards = payload.items.length > 0
-    ? `<section class="cards">${payload.items.map(renderPublicItemCard).join('')}</section>`
+    ? `<section class="${sectionClass}">${payload.items.map(renderFn).join('')}</section>`
     : '<section class="empty">当前还没有公开内容。</section>';
 
   return renderLayout({
@@ -791,13 +1021,17 @@ export function renderPublicListPage(payload) {
     description: '公开访客可以在这里浏览已经发布的文件与富文本，并继续进入详情页或下载原始文件。',
     mode: 'public',
     eyebrow: 'Public Discovery',
-    body: `${renderToolbar({ totalItems: payload.totalItems, page: payload.page, backHref: '/web/public/list', backLabel: '刷新公开列表' })}${cards}`
+    body: `${renderToolbar({ totalItems: payload.totalItems, page: payload.page, backHref: '/web/public/list', backLabel: '刷新公开列表', layout, toggleLayoutHref: `?layout=${layout === 'rows' ? 'cards' : 'rows'}` })}${cards}`
   });
 }
 
 export function renderPublicSearchPage(payload) {
+  const layout = payload.layout || 'cards';
+  const sectionClass = layout === 'rows' ? 'cards list-rows' : 'cards';
+  const renderFn = layout === 'rows' ? renderPublicItemRow : renderPublicItemCard;
+  const toggleHref = buildLayoutToggleHref(`/web/public/search?q=${encodeURIComponent(payload.query || '')}`, layout);
   const cards = payload.items.length > 0
-    ? `<section class="cards">${payload.items.map(renderPublicItemCard).join('')}</section>`
+    ? `<section class="${sectionClass}">${payload.items.map(renderFn).join('')}</section>`
     : `<section class="empty">没有匹配“${escapeHtml(payload.query)}”的公开内容。</section>`;
 
   return renderLayout({
@@ -807,13 +1041,13 @@ export function renderPublicSearchPage(payload) {
     mode: 'public',
     query: payload.query,
     eyebrow: 'Public Discovery',
-    body: `${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, backHref: '/web/public/list', backLabel: '返回公开列表' })}${cards}`
+    body: `${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, backHref: '/web/public/list', backLabel: '返回公开列表', layout, toggleLayoutHref: toggleHref })}${cards}`
   });
 }
 
 export function renderOwnerDetailPage(detail) {
   const contentBlock = detail.type === 'rich_text'
-    ? `<section class="panel preview-shell"><div class="badge-row"><span class="badge">${escapeHtml(detail.bodyFormat === 'markdown' ? 'Markdown 渲染预览' : 'HTML 预览')}</span></div><h3>最终展示预览</h3><iframe class="preview" sandbox="" srcdoc="${escapeHtml(detail.renderedBodyHtml || detail.htmlContent || '')}"></iframe></section>`
+    ? `<section class="panel preview-shell"><div class="badge-row"><span class="badge">${escapeHtml(detail.bodyFormat === 'markdown' ? 'Markdown 渲染预览' : 'HTML 预览')}</span></div><h3>最终展示预览</h3><iframe class="preview" sandbox="${detail.bodyFormat === 'markdown' ? 'allow-scripts' : ''}" srcdoc="${buildPreviewSrcdoc(detail.renderedBodyHtml || detail.htmlContent || '', { enableMath: detail.bodyFormat === 'markdown' })}"></iframe></section>`
     : `<section class="panel"><h3>文件交付信息</h3><div class="meta-grid"><div><strong>文件名</strong><span>${escapeHtml(detail.originalFilename || '未提供')}</span></div><div><strong>MIME</strong><span>${escapeHtml(detail.mimeType || '-')}</span></div><div><strong>大小</strong><span>${escapeHtml(formatFileSize(detail.fileSize))}</span></div><div><strong>本地文件状态</strong><span>${escapeHtml(detail.localFileExists === false ? '本地文件缺失' : '文件存在')}</span></div><div><strong>文件访问</strong>${detail.isShared ? `<a class="supporting-link" href="/web/public/content/${encodeURIComponent(detail.contentHash)}">打开公开下载页</a>` : '<span class="muted">未分享，无法公开下载。</span>'}</div></div>${detail.localFileExists === false ? '<p class="subtle-note">请重新上传或删除该记录，否则数据库记录与物理文件将持续不一致。</p>' : ''}</section>`;
 
   return renderLayout({
@@ -827,8 +1061,8 @@ export function renderOwnerDetailPage(detail) {
 
 export function renderPublicContentPage(payload) {
   const body = payload.type === 'rich_text'
-    ? `<section class="detail-layout"><div class="detail-main"><section class="panel preview-shell"><div class="badge-row"><span class="badge">${escapeHtml(payload.bodyFormat === 'markdown' ? '公开 Markdown 渲染内容' : '公开 HTML 内容')}</span></div><h2>${escapeHtml(payload.title || '未命名内容')}</h2><iframe class="preview" sandbox="" srcdoc="${escapeHtml(payload.renderedBodyHtml || payload.htmlContent || '')}"></iframe></section></div><aside class="detail-side"><section class="panel"><h3>访问说明</h3><p>当前页面展示的是已公开富文本内容，外部访客无需登录即可查看。</p><div class="meta"><span>访问方式：${escapeHtml(payload.access === 'share_link' ? '分享链接' : '内容 hash')}</span><span>正文格式：${escapeHtml(payload.bodyFormat || 'html')}</span></div></section></aside></section>`
-    : `<section class="detail-layout"><div class="detail-main"><section class="panel"><div class="badge-row"><span class="badge">公开文件</span></div><h2>${escapeHtml(payload.title || payload.originalFilename || '文件内容')}</h2><p>文件名：${escapeHtml(payload.download.filename)}</p><p>MIME：${escapeHtml(payload.download.mimeType)}</p><p><a class="btn" href="${escapeHtml(payload.accessUrl)}">下载原始文件</a></p><p>该地址直接返回原始文件字节流，适合浏览器下载与外部系统拉取。</p></section></div><aside class="detail-side"><section class="panel"><h3>访问说明</h3><div class="meta"><span>访问方式：${escapeHtml(payload.access === 'share_link' ? '分享链接' : '内容 hash')}</span><span>大小：${escapeHtml(formatFileSize(payload.fileSize))}</span></div></section></aside></section>`;
+    ? `<section class="detail-layout"><div class="detail-main"><section class="panel preview-shell"><div class="badge-row"><span class="badge">${escapeHtml(payload.bodyFormat === 'markdown' ? '公开 Markdown 渲染内容' : '公开 HTML 内容')}</span></div><h2>${escapeHtml(payload.title || '未命名内容')}</h2><iframe class="preview" sandbox="${payload.bodyFormat === 'markdown' ? 'allow-scripts' : ''}" srcdoc="${buildPreviewSrcdoc(payload.renderedBodyHtml || payload.htmlContent || '', { enableMath: payload.bodyFormat === 'markdown' })}"></iframe></section></div><aside class="detail-side"><section class="panel"><h3>访问说明</h3><p>当前页面展示的是已公开富文本内容，外部访客无需登录即可查看。</p><div class="meta"><span>访问方式：${escapeHtml(payload.access === 'share_link' ? '分享链接' : '内容 hash')}</span><span>正文格式：${escapeHtml(payload.bodyFormat || 'html')}</span></div></section></aside></section>`
+    : `<section class="detail-layout"><div class="detail-main"><section class="panel"><div class="badge-row"><span class="badge">公开文件</span></div><h2>${escapeHtml(payload.title || payload.originalFilename || '文件内容')}</h2><p>文件名：${escapeHtml(payload.download.filename)}</p><p>MIME：${escapeHtml(payload.download.mimeType)}</p><p><a class="btn" href="${escapeHtml(payload.publicApiUrl || payload.accessUrl)}">下载原始文件</a></p><p>该地址直接返回原始文件字节流，适合浏览器下载与外部系统拉取。</p></section></div><aside class="detail-side"><section class="panel"><h3>访问说明</h3><div class="meta"><span>访问方式：${escapeHtml(payload.access === 'share_link' ? '分享链接' : '内容 hash')}</span><span>大小：${escapeHtml(formatFileSize(payload.fileSize))}</span></div></section></aside></section>`;
 
   return renderLayout({
     title: payload.title || payload.originalFilename || '公开访问',

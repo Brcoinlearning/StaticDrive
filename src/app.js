@@ -343,6 +343,7 @@ export function createApp(config, dependencies = {}) {
             page: url.searchParams.get('page'),
             perPage: url.searchParams.get('perPage')
           });
+          result.layout = url.searchParams.get('layout') || 'cards';
           html(response, 200, renderPublicListPage(result));
           return;
         }
@@ -353,6 +354,7 @@ export function createApp(config, dependencies = {}) {
             page: url.searchParams.get('page'),
             perPage: url.searchParams.get('perPage')
           });
+          result.layout = url.searchParams.get('layout') || 'cards';
           html(response, 200, renderPublicSearchPage(result));
           return;
         }
@@ -455,6 +457,7 @@ export function createApp(config, dependencies = {}) {
           });
 
           result.flash = buildFlashFromParams(url.searchParams);
+          result.layout = url.searchParams.get('layout') || 'cards';
           html(response, 200, renderOwnerListPage(result));
           return;
         }
@@ -469,6 +472,7 @@ export function createApp(config, dependencies = {}) {
           });
 
           result.flash = buildFlashFromParams(url.searchParams);
+          result.layout = url.searchParams.get('layout') || 'cards';
           html(response, 200, renderOwnerSearchPage(result));
           return;
         }

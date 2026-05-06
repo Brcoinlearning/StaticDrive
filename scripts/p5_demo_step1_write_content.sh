@@ -17,12 +17,12 @@ CONTENT_RESPONSE="$(curl -sS -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/conten
 EMPTY_TITLE_RESPONSE="$(curl -sS -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/content" \
   -H 'content-type: application/json' \
   -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY" \
-  -d '{"title":"   ","body":"<p>只有正文，没有标题。</p>","bodyFormat":"html"}'"
+  -d '{"title":"   ","body":"<p>只有正文，没有标题。</p>","bodyFormat":"html"}')"
 
 INVALID_BODY_STATUS="$(curl -sS -o /tmp/p5_demo_invalid_body.json -w '%{http_code}' -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/content" \
   -H 'content-type: application/json' \
   -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY" \
-  -d '{"title":"invalid","body":"   ","bodyFormat":"html"}'"
+  -d '{"title":"invalid","body":"   ","bodyFormat":"html"}')"
 
 require_json_field "$CONTENT_RESPONSE" "contentId" "p5-demo-step1:content"
 require_json_field "$CONTENT_RESPONSE" "contentHash" "p5-demo-step1:content"
@@ -50,5 +50,6 @@ save_p5_demo_state
 echo "[p5-demo-step1] content created: $P5_CONTENT_ID"
 echo "[p5-demo-step1] content hash: $P5_CONTENT_HASH"
 echo "[p5-demo-step1] content bodyFormat: $P5_DEMO_BODY_FORMAT"
+echo "[p5-demo-step1] sample covers: task-list, bare-url, nested-list, quote, code-block, table, image, inline-math, block-math"
 echo "[p5-demo-step1] empty title write: ok"
 echo "[p5-demo-step1] invalid body rejected with 400"

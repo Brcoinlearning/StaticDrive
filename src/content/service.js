@@ -33,6 +33,8 @@ function renderMarkdownInline(value) {
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
     return stash(`<a href="${escapeHtml(href)}"${titleAttr}>${renderMarkdownInline(label)}</a>`);
   });
+  output = output.replace(/\$([^$\n]+)\$/g, (_match) => stash(`<span class="math-inline">${_match}</span>`));
+  output = output.replace(/(^|\s)(https?:\/\/[^\s<>。，；：！？、（）【】《》]+)(?=$|[\s<>。，；：！？、（）【】《》])/g, (_match, prefix, href) => `${prefix}${stash(`<a href="${escapeHtml(href)}">${escapeHtml(href)}</a>`)}`);
   output = output.replace(/`([^`]+)`/g, '<code>$1</code>');
   output = output.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   output = output.replace(/__([^_]+)__/g, '<strong>$1</strong>');
@@ -50,14 +52,45 @@ function flushMarkdownParagraph(lines, blocks) {
   lines.length = 0;
 }
 
+function renderMarkdownListItem(item) {
+  const nestedParts = item.split('__NESTED_UL__');
+  if (nestedParts.length > 1) {
+    return `<li>${renderMarkdownInline(nestedParts[0])}<ul><li>${renderMarkdownInline(nestedParts.slice(1).join('__NESTED_UL__'))}</li></ul></li>`;
+  }
+
+  const taskMatch = item.match(/^\[([ xX])\]\s+(.*)$/);
+  if (taskMatch) {
+    const checked = taskMatch[1].toLowerCase() === 'x' ? ' checked' : '';
+    return `<li><input type="checkbox" disabled${checked}> ${renderMarkdownInline(taskMatch[2].trim())}</li>`;
+  }
+
+  return `<li>${renderMarkdownInline(item)}</li>`;
+}
+
 function flushMarkdownList(items, ordered, blocks) {
   if (items.length === 0) {
     return;
   }
 
   const tag = ordered ? 'ol' : 'ul';
-  blocks.push(`<${tag}>${items.map((item) => `<li>${renderMarkdownInline(item)}</li>`).join('')}</${tag}>`);
+  blocks.push(`<${tag}>${items.map((item) => renderMarkdownListItem(item)).join('')}</${tag}>`);
   items.length = 0;
+}
+
+function renderMarkdownTable(lines) {
+  if (lines.length < 2) {
+    return null;
+  }
+
+  const splitRow = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim());
+  const header = splitRow(lines[0]);
+  const divider = splitRow(lines[1]);
+  if (header.length === 0 || divider.length !== header.length || !divider.every((cell) => /^[\s:-]+$/.test(cell) && /-/.test(cell))) {
+    return null;
+  }
+
+  const bodyRows = lines.slice(2).map(splitRow).filter((row) => row.length === header.length);
+  return `<table><thead><tr>${header.map((cell) => `<th>${renderMarkdownInline(cell)}</th>`).join('')}</tr></thead><tbody>${bodyRows.map((row) => `<tr>${row.map((cell) => `<td>${renderMarkdownInline(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
 function defaultMarkdownRenderer(markdown) {
@@ -83,20 +116,29 @@ function defaultMarkdownRenderer(markdown) {
   let listOrdered = false;
   let inCodeBlock = false;
   let codeLines = [];
+  let codeLanguage = '';
 
-  for (const rawLine of lines) {
+  function flushCurrentTextState() {
+    flushMarkdownParagraph(paragraphLines, blocks);
+    flushMarkdownList(listItems, listOrdered, blocks);
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const rawLine = lines[index];
     const line = rawLine.trimEnd();
     const trimmed = line.trim();
 
     if (trimmed.startsWith('```')) {
-      flushMarkdownParagraph(paragraphLines, blocks);
-      flushMarkdownList(listItems, listOrdered, blocks);
+      flushCurrentTextState();
       if (inCodeBlock) {
-        blocks.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+        const classAttr = codeLanguage ? ` class="language-${escapeHtml(codeLanguage)}"` : '';
+        blocks.push(`<pre><code${classAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
         inCodeBlock = false;
         codeLines = [];
+        codeLanguage = '';
       } else {
         inCodeBlock = true;
+        codeLanguage = trimmed.slice(3).trim();
       }
       continue;
     }
@@ -107,17 +149,64 @@ function defaultMarkdownRenderer(markdown) {
     }
 
     if (!trimmed) {
-      flushMarkdownParagraph(paragraphLines, blocks);
-      flushMarkdownList(listItems, listOrdered, blocks);
+      flushCurrentTextState();
+      continue;
+    }
+
+    if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+      flushCurrentTextState();
+      blocks.push('<hr>');
+      continue;
+    }
+
+    if (trimmed === '$$') {
+      flushCurrentTextState();
+      const formulaLines = [];
+      index += 1;
+      while (index < lines.length && lines[index].trim() !== '$$') {
+        formulaLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push(`<div class="math-block">$$${escapeHtml(formulaLines.join('\n').trim())}$$</div>`);
       continue;
     }
 
     const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
     if (headingMatch) {
-      flushMarkdownParagraph(paragraphLines, blocks);
-      flushMarkdownList(listItems, listOrdered, blocks);
+      flushCurrentTextState();
       const level = headingMatch[1].length;
       blocks.push(`<h${level}>${renderMarkdownInline(headingMatch[2].trim())}</h${level}>`);
+      continue;
+    }
+
+    const quoteMatch = trimmed.match(/^>\s?(.*)$/);
+    if (quoteMatch) {
+      flushCurrentTextState();
+      blocks.push(`<blockquote><p>${renderMarkdownInline(quoteMatch[1].trim())}</p></blockquote>`);
+      continue;
+    }
+
+    if (trimmed.includes('|') && index + 1 < lines.length && lines[index + 1].trim().includes('|')) {
+      const candidate = [trimmed, lines[index + 1].trim()];
+      let cursor = index + 2;
+      while (cursor < lines.length && lines[cursor].trim().includes('|') && lines[cursor].trim() !== '') {
+        candidate.push(lines[cursor].trim());
+        cursor += 1;
+      }
+      const tableHtml = renderMarkdownTable(candidate);
+      if (tableHtml) {
+        flushCurrentTextState();
+        blocks.push(tableHtml);
+        index = cursor - 1;
+        continue;
+      }
+    }
+
+    const nestedUnorderedMatch = line.match(/^\s+[-*]\s+(.*)$/);
+    if (nestedUnorderedMatch && listItems.length > 0 && !listOrdered) {
+      const parent = listItems.pop();
+      const nestedItem = nestedUnorderedMatch[1].trim();
+      listItems.push(`${parent}__NESTED_UL__${nestedItem}`);
       continue;
     }
 
@@ -143,14 +232,6 @@ function defaultMarkdownRenderer(markdown) {
       continue;
     }
 
-    const quoteMatch = trimmed.match(/^>\s?(.*)$/);
-    if (quoteMatch) {
-      flushMarkdownParagraph(paragraphLines, blocks);
-      flushMarkdownList(listItems, listOrdered, blocks);
-      blocks.push(`<blockquote><p>${renderMarkdownInline(quoteMatch[1].trim())}</p></blockquote>`);
-      continue;
-    }
-
     if (listItems.length > 0) {
       flushMarkdownList(listItems, listOrdered, blocks);
     }
@@ -158,7 +239,8 @@ function defaultMarkdownRenderer(markdown) {
   }
 
   if (inCodeBlock) {
-    blocks.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+    const classAttr = codeLanguage ? ` class="language-${escapeHtml(codeLanguage)}"` : '';
+    blocks.push(`<pre><code${classAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
   }
 
   flushMarkdownParagraph(paragraphLines, blocks);
@@ -201,12 +283,22 @@ function buildRenderedContent({ body, bodyFormat, markdownRenderer }) {
   throw error;
 }
 
-function buildAccessUrl(config, contentHash) {
+function buildPublicPageUrl(config, contentHash) {
+  const baseUrl = config.publicBaseUrl || `http://${config.serviceHost}:${config.servicePort}`;
+  return `${baseUrl}/web/public/content/${encodeURIComponent(contentHash)}`;
+}
+
+function buildPublicApiUrl(config, contentHash) {
   const baseUrl = config.publicBaseUrl || `http://${config.serviceHost}:${config.servicePort}`;
   return `${baseUrl}/api/public/content/${contentHash}`;
 }
 
-function buildShareUrl(config, shareHash) {
+function buildSharePageUrl(config, shareHash) {
+  const baseUrl = config.publicBaseUrl || `http://${config.serviceHost}:${config.servicePort}`;
+  return `${baseUrl}/web/public/share/${encodeURIComponent(shareHash)}`;
+}
+
+function buildShareApiUrl(config, shareHash) {
   const baseUrl = config.publicBaseUrl || `http://${config.serviceHost}:${config.servicePort}`;
   return `${baseUrl}/api/public/share/${shareHash}`;
 }
@@ -255,6 +347,14 @@ function stripHtmlToText(value) {
     .trim();
 }
 
+function truncateSummary(text, maxLen = 120) {
+  if (typeof text !== 'string' || text.length <= maxLen) {
+    return text || '';
+  }
+
+  return text.slice(0, maxLen).replace(/\s+\S*$/, '') + ' ...';
+}
+
 function resolveAuthorName(record) {
   const displayName = record?.expand?.owner_user_id?.display_name;
   if (typeof displayName !== 'string') {
@@ -299,7 +399,7 @@ function buildContentObjectFields(record) {
     htmlContent: richTextView.htmlContent,
     authorName: resolveAuthorName(record),
     createdAt: record.created,
-    summary: richTextView.renderedBodyHtml ? stripHtmlToText(richTextView.renderedBodyHtml) : ''
+    summary: richTextView.renderedBodyHtml ? truncateSummary(stripHtmlToText(richTextView.renderedBodyHtml)) : ''
   };
 }
 
@@ -356,7 +456,8 @@ function buildContentSummary(config, record) {
     ...buildContentObjectFields(record),
     originalFilename: record.original_filename,
     contentHash: record.content_hash,
-    accessUrl: buildAccessUrl(config, record.content_hash),
+    accessUrl: buildPublicPageUrl(config, record.content_hash),
+    publicApiUrl: buildPublicApiUrl(config, record.content_hash),
     mimeType: record.mime_type,
     fileSize: record.file_size,
     localFileExists: record.type === 'file' ? record.local_file_exists !== false : true,
@@ -372,12 +473,15 @@ function buildPublicContentSummary(config, record) {
     title: record.title,
     originalFilename: record.original_filename,
     contentHash: record.content_hash,
-    accessUrl: buildAccessUrl(config, record.content_hash),
+    accessUrl: buildPublicPageUrl(config, record.content_hash),
+    publicApiUrl: buildPublicApiUrl(config, record.content_hash),
     publicPageUrl: `/web/public/content/${encodeURIComponent(record.content_hash)}`,
     mimeType: record.mime_type,
     fileSize: record.file_size,
     createdAt: record.created,
-    updatedAt: record.updated
+    updatedAt: record.updated,
+    bodyFormat: record.body_format || 'html',
+    summary: truncateSummary(stripHtmlToText(record.html_content || ''))
   };
 }
 
@@ -513,7 +617,8 @@ function buildPublicHtmlPayload(config, record, access) {
     bodyFormat: richTextView.bodyFormat,
     renderedBodyHtml: richTextView.renderedBodyHtml,
     htmlContent: richTextView.htmlContent,
-    accessUrl: buildAccessUrl(config, record.content_hash)
+    accessUrl: buildPublicPageUrl(config, record.content_hash),
+    publicApiUrl: buildPublicApiUrl(config, record.content_hash)
   };
 }
 
@@ -527,7 +632,8 @@ function buildPublicFilePayload(config, record, fileContent, access) {
     contentHash: record.content_hash,
     mimeType: record.mime_type,
     fileSize: record.file_size,
-    accessUrl: buildAccessUrl(config, record.content_hash),
+    accessUrl: buildPublicPageUrl(config, record.content_hash),
+    publicApiUrl: buildPublicApiUrl(config, record.content_hash),
     download: {
       filename: record.original_filename,
       mimeType: record.mime_type
@@ -641,7 +747,8 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
       contentId: record.id,
       type: 'rich_text',
       contentHash,
-      accessUrl: buildAccessUrl(config, contentHash)
+      accessUrl: buildPublicPageUrl(config, contentHash),
+      publicApiUrl: buildPublicApiUrl(config, contentHash)
     };
   }
 
@@ -683,7 +790,8 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
       contentId: record.id,
       type: 'file',
       contentHash,
-      accessUrl: buildAccessUrl(config, contentHash)
+      accessUrl: buildPublicPageUrl(config, contentHash),
+      publicApiUrl: buildPublicApiUrl(config, contentHash)
     };
   }
 
@@ -1011,8 +1119,10 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
         contentHash: record.content_hash,
         shareId: existingShareLink.id,
         shareHash: existingShareLink.share_hash,
-        shareUrl: buildShareUrl(config, existingShareLink.share_hash),
-        accessUrl: buildAccessUrl(config, record.content_hash),
+        shareUrl: buildSharePageUrl(config, existingShareLink.share_hash),
+        shareApiUrl: buildShareApiUrl(config, existingShareLink.share_hash),
+        accessUrl: buildPublicPageUrl(config, record.content_hash),
+        publicApiUrl: buildPublicApiUrl(config, record.content_hash),
         type: record.type
       };
     }
@@ -1037,8 +1147,10 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
       contentHash: record.content_hash,
       shareId: shareLink.id,
       shareHash,
-      shareUrl: buildShareUrl(config, shareHash),
-      accessUrl: buildAccessUrl(config, record.content_hash),
+      shareUrl: buildSharePageUrl(config, shareHash),
+      shareApiUrl: buildShareApiUrl(config, shareHash),
+      accessUrl: buildPublicPageUrl(config, record.content_hash),
+      publicApiUrl: buildPublicApiUrl(config, record.content_hash),
       type: record.type
     };
   }

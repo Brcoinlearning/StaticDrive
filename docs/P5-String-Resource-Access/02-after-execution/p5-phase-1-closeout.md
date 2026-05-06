@@ -33,7 +33,7 @@
 4. owner 详情页预览统一使用 `renderedBodyHtml`。
 5. public 页面预览统一使用 `renderedBodyHtml`。
 6. owner 更新表单改为编辑 `body + bodyFormat`，不再停留在旧 `htmlContent` 心智。
-7. P5 demo 脚本默认演示 Markdown 写入、查询、公开展示主链路。
+7. P5 demo 脚本默认演示 Markdown 写入、查询、owner/public 展示主链路，并覆盖 task list、裸链接、嵌套列表、代码块、表格、标准图片与数学公式样例。
 
 ## 4. 范围外仍未进入内容
 
@@ -94,11 +94,11 @@ bash -n scripts/p5_demo_common.sh \
 
 默认演示顺序：
 
-1. 写入一条 Markdown 内容对象。
-2. 查询内容对象，确认 `body / bodyFormat / renderedBodyHtml / htmlContent`。
-3. 打开 owner 详情页，确认预览使用最终 HTML、更新表单保留原始 `body + bodyFormat`。
-4. 打开 public 页面，确认公开访问展示的是渲染后的 HTML。
-5. 清理演示数据。
+1. 写入一条 Markdown 内容对象，观察脚本输出里已经声明样例覆盖的能力范围。
+2. 查询内容对象，确认 `body / bodyFormat / renderedBodyHtml / htmlContent`，并验证原始 Markdown 与最终 HTML 同时存在。
+3. 打开 owner 详情页，重点检查 task list、裸链接、嵌套列表、代码块、表格、图片与公式渲染，同时确认更新表单仍保留原始 `body + bodyFormat`。
+4. 打开 public 页面或 share page URL，确认访客侧看到的也是相同的渲染结果，而不是原始 Markdown 文本。
+5. 如需排查数据结构，再打开 direct API；演示完成后清理数据。
 
 ## 8. 残余风险
 

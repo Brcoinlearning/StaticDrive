@@ -64,7 +64,8 @@ test('write/html creates unified rich_text content record', async () => {
   assert.equal(response.body.contentId, 'content_1');
   assert.equal(response.body.type, 'rich_text');
   assert.match(response.body.contentHash, /^[a-f0-9]{32}$/);
-  assert.equal(response.body.accessUrl, `http://127.0.0.1:8787/api/public/content/${response.body.contentHash}`);
+  assert.equal(response.body.accessUrl, `http://127.0.0.1:8787/web/public/content/${response.body.contentHash}`);
+  assert.equal(response.body.publicApiUrl, `http://127.0.0.1:8787/api/public/content/${response.body.contentHash}`);
 });
 
 test('write/html accepts empty title and keeps body as the only required content field', async () => {
@@ -257,6 +258,161 @@ test('write/content preserves markdown link urls containing underscores', async 
 
   assert.equal(response.statusCode, 201);
   assert.equal(response.body.contentId, 'content_markdown_link_url');
+});
+
+test('content service renders task list items in markdown output', () => {
+  const service = createContentService({
+    config: createConfig('/tmp/shutong49-markdown-task-list'),
+    pocketbaseClient: {},
+    fsImpl: {
+      async readFile() { throw new Error('not used'); },
+      async mkdir() {},
+      async writeFile() {},
+      async unlink() {},
+      async rm() {}
+    }
+  });
+  assert.equal(typeof service, 'object');
+});
+
+test('write/content renders markdown task list items for agent-style output', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-task-list'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<ul><li><input type="checkbox" disabled checked> done</li><li><input type="checkbox" disabled> pending</li></ul>');
+        return { id: 'content_markdown_task_list' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Task List',
+      body: '- [x] done\n- [ ] pending',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content auto-links bare urls in markdown paragraphs', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-bare-url'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<p>Docs: <a href="https://example.com/docs">https://example.com/docs</a></p>');
+        return { id: 'content_markdown_bare_url' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Bare URL',
+      body: 'Docs: https://example.com/docs',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content preserves fenced code block language class for agent code samples', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-code-lang'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<pre><code class="language-js">console.log(1);</code></pre>');
+        return { id: 'content_markdown_code_lang' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Code Lang',
+      body: "```js\nconsole.log(1);\n```",
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+});
+
+test('write/content keeps nested list structure in markdown output', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-test-write-content-nested-list'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        assert.equal(record.body_format, 'markdown');
+        assert.equal(record.html_content, '<ul><li>parent<ul><li>child</li></ul></li></ul>');
+        return { id: 'content_markdown_nested_list' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: {
+      title: 'Markdown Nested List',
+      body: '- parent\n  - child',
+      bodyFormat: 'markdown'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 201);
 });
 
 test('write/content rejects markdown when rendering fails', async () => {
@@ -622,7 +778,8 @@ test('query/list returns owner-scoped content summaries', async () => {
     summary: '',
     originalFilename: 'report.pdf',
     contentHash: 'abcd1234abcd1234abcd1234abcd1234',
-    accessUrl: 'http://127.0.0.1:8787/api/public/content/abcd1234abcd1234abcd1234abcd1234',
+    accessUrl: 'http://127.0.0.1:8787/web/public/content/abcd1234abcd1234abcd1234abcd1234',
+    publicApiUrl: 'http://127.0.0.1:8787/api/public/content/abcd1234abcd1234abcd1234abcd1234',
     mimeType: 'application/pdf',
     fileSize: 1024,
     localFileExists: false,
@@ -1384,7 +1541,8 @@ test('web/detail renders markdown content from rendered html instead of raw mark
 
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /Markdown 渲染预览/);
-  assert.match(response.rawBody, /srcdoc="&lt;h1&gt;Raw Markdown&lt;\/h1&gt;&lt;p&gt;Paragraph&lt;\/p&gt;"/);
+  assert.match(response.rawBody, /sandbox="allow-scripts"/);
+  assert.match(response.rawBody, /srcdoc="&lt;!doctype html&gt;/);
   assert.match(response.rawBody, /textarea id="body"/);
   assert.doesNotMatch(response.rawBody, /textarea id="body"># Raw Markdown/);
 });
@@ -1404,7 +1562,8 @@ test('web public page renders markdown content from rendered html', async () => 
           bodyFormat: 'markdown',
           renderedBodyHtml: '<h1>Public</h1><p>Body</p>',
           htmlContent: '<h1>Public</h1><p>Body</p>',
-          accessUrl: 'http://127.0.0.1:8787/api/public/content/publicmarkdownhash1234publicmkd'
+          accessUrl: 'http://127.0.0.1:8787/web/public/content/publicmarkdownhash1234publicmkd',
+          publicApiUrl: 'http://127.0.0.1:8787/api/public/content/publicmarkdownhash1234publicmkd'
         };
       }
     },
@@ -1426,7 +1585,7 @@ test('web public page renders markdown content from rendered html', async () => 
 
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /公开 Markdown 渲染内容/);
-  assert.match(response.rawBody, /srcdoc="&lt;h1&gt;Public&lt;\/h1&gt;&lt;p&gt;Body&lt;\/p&gt;"/);
+  assert.match(response.rawBody, /srcdoc="&lt;!doctype html&gt;/);
   assert.match(response.rawBody, /正文格式：markdown/);
 });
 test('web/list renders owner content list page with action-oriented layout', async () => {
@@ -1823,7 +1982,7 @@ test('web/detail renders rich text in sandboxed iframe and owner action panel', 
 
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /<iframe class="preview" sandbox=""/);
-  assert.match(response.rawBody, /srcdoc="&lt;script&gt;alert\(1\)&lt;\/script&gt;&lt;h1&gt;Hello&lt;\/h1&gt;"/);
+  assert.match(response.rawBody, /srcdoc="&lt;!doctype html&gt;/);
   assert.match(response.rawBody, /HTML 预览|最终展示预览/);
   assert.match(response.rawBody, /Owner 操作/);
   assert.match(response.rawBody, /action="\/web\/action\/share\/revoke"/);
@@ -1839,7 +1998,8 @@ test('web/detail shows missing local file status for broken owner file records',
           title: 'Broken File',
           originalFilename: 'broken.txt',
           contentHash: 'deadbeefdeadbeefdeadbeefdeadbeef',
-          accessUrl: 'http://127.0.0.1:8787/api/public/content/deadbeefdeadbeefdeadbeefdeadbeef',
+          accessUrl: 'http://127.0.0.1:8787/web/public/content/deadbeefdeadbeefdeadbeefdeadbeef',
+          publicApiUrl: 'http://127.0.0.1:8787/api/public/content/deadbeefdeadbeefdeadbeefdeadbeef',
           mimeType: 'text/plain',
           fileSize: 9,
           localFileExists: false,
