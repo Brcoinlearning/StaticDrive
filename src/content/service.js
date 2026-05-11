@@ -4,6 +4,11 @@ import path from 'node:path';
 
 
 const MAX_HASH_RETRIES = 5;
+const ACCESS_MODE_PUBLIC = 'public';
+const ACCESS_MODE_PASSWORD = 'password';
+const PASSWORD_COOKIE_MAX_AGE_SECONDS = 600;
+const PASSWORD_MAX_ATTEMPTS = 5;
+const PASSWORD_COOLDOWN_SECONDS = 60;
 
 
 function escapeHtml(value) {
@@ -413,6 +418,131 @@ function normalizeOptionalString(value) {
   return value.trim();
 }
 
+function normalizeAccessMode(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    const error = new Error('accessMode must be public or password.');
+    error.statusCode = 400;
+    error.code = 'invalid_access_payload';
+    throw error;
+  }
+
+  const normalized = value.trim();
+  if (normalized !== ACCESS_MODE_PUBLIC && normalized !== ACCESS_MODE_PASSWORD) {
+    const error = new Error('accessMode must be public or password.');
+    error.statusCode = 400;
+    error.code = 'invalid_access_payload';
+    throw error;
+  }
+
+  return normalized;
+}
+
+function normalizePassword(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    const error = new Error('accessPassword must be a string.');
+    error.statusCode = 400;
+    error.code = 'invalid_access_payload';
+    throw error;
+  }
+
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const derived = crypto.scryptSync(password, salt, 64);
+  return `scrypt:${salt.toString('hex')}:${derived.toString('hex')}`;
+}
+
+function verifyPassword(password, hashValue) {
+  if (typeof hashValue !== 'string' || !hashValue.startsWith('scrypt:')) {
+    return false;
+  }
+
+  const parts = hashValue.split(':');
+  if (parts.length !== 3) {
+    return false;
+  }
+
+  const [, saltHex, expectedHex] = parts;
+  if (!saltHex || !expectedHex) {
+    return false;
+  }
+
+  const derived = crypto.scryptSync(password, Buffer.from(saltHex, 'hex'), expectedHex.length / 2);
+  const expected = Buffer.from(expectedHex, 'hex');
+  if (derived.length !== expected.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(derived, expected);
+}
+
+function resolveAccessSettings(record) {
+  const hasPassword = typeof record.access_password_hash === 'string' && record.access_password_hash.trim();
+  const mode = record.access_mode === ACCESS_MODE_PASSWORD && hasPassword ? ACCESS_MODE_PASSWORD : ACCESS_MODE_PUBLIC;
+  return {
+    accessMode: mode,
+    accessHint: normalizeOptionalString(record.access_hint)
+  };
+}
+
+function signAccessToken(secret, payload) {
+  const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(encodedPayload)
+    .digest('base64url');
+  return `${encodedPayload}.${signature}`;
+}
+
+function verifyAccessToken(secret, token) {
+  if (typeof token !== 'string') {
+    return null;
+  }
+
+  const dotIndex = token.indexOf('.');
+  if (dotIndex <= 0 || dotIndex >= token.length - 1) {
+    return null;
+  }
+
+  const encodedPayload = token.slice(0, dotIndex);
+  const signature = token.slice(dotIndex + 1);
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(encodedPayload)
+    .digest('base64url');
+
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+    if (typeof payload !== 'object' || payload === null) {
+      return null;
+    }
+    if (typeof payload.contentId !== 'string' || typeof payload.exp !== 'number') {
+      return null;
+    }
+    if (payload.exp <= Date.now()) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 function stripHtmlToText(value) {
   if (typeof value !== 'string' || !value) {
     return '';
@@ -572,10 +702,13 @@ function buildPublicContentSummary(config, record) {
 }
 
 function buildContentDetail(config, record) {
+  const access = resolveAccessSettings(record);
   return {
     ...buildContentSummary(config, record),
     ownerUserId: record.owner_user_id,
-    storagePath: record.storage_path
+    storagePath: record.storage_path,
+    accessMode: access.accessMode,
+    accessHint: access.accessHint
   };
 }
 
@@ -730,6 +863,91 @@ function buildPublicFilePayload(config, record, fileContent, access) {
 
 export function createContentService({ config, pocketbaseClient, fsImpl = fs, markdownRenderer = defaultMarkdownRenderer }) {
   const storageRoot = path.join(config.workspaceDir, 'content-files');
+  const publicAccessSecret = `${config.pocketbaseAdminPassword || 'default-secret'}:${config.servicePort}`;
+  const passwordAttempts = new Map();
+
+  function buildPublicAccessCookieName(access) {
+    return `shutong49_public_access_${access}`;
+  }
+
+  function buildPublicAccessCookie({ access, token }) {
+    return `${buildPublicAccessCookieName(access)}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${PASSWORD_COOKIE_MAX_AGE_SECONDS}`;
+  }
+
+  function isPublicAccessGranted({ access, record, cookies = {} }) {
+    const settings = resolveAccessSettings(record);
+    if (settings.accessMode === ACCESS_MODE_PUBLIC) {
+      return true;
+    }
+
+    const cookieName = buildPublicAccessCookieName(access);
+    const token = cookies[cookieName];
+    const payload = verifyAccessToken(publicAccessSecret, token);
+    if (!payload) {
+      return false;
+    }
+
+    return payload.contentId === record.id && payload.access === access;
+  }
+
+  function denyProtectedAccess(record) {
+    const settings = resolveAccessSettings(record);
+    const error = new Error('Password verification required.');
+    error.statusCode = 401;
+    error.code = 'public_password_required';
+    error.details = {
+      accessMode: settings.accessMode,
+      accessHint: settings.accessHint
+    };
+    throw error;
+  }
+
+  function issuePublicAccessToken({ access, record }) {
+    const token = signAccessToken(publicAccessSecret, {
+      contentId: record.id,
+      access,
+      exp: Date.now() + PASSWORD_COOKIE_MAX_AGE_SECONDS * 1000
+    });
+    return {
+      token,
+      setCookie: buildPublicAccessCookie({ access, token }),
+      expiresInSeconds: PASSWORD_COOKIE_MAX_AGE_SECONDS
+    };
+  }
+
+  function checkAttemptThrottle(attemptKey) {
+    const now = Date.now();
+    const state = passwordAttempts.get(attemptKey);
+    if (!state) {
+      return;
+    }
+
+    if (state.blockedUntil && state.blockedUntil > now) {
+      const error = new Error('Too many failed attempts, please retry later.');
+      error.statusCode = 429;
+      error.code = 'password_attempt_limited';
+      throw error;
+    }
+
+    if (state.blockedUntil && state.blockedUntil <= now) {
+      passwordAttempts.delete(attemptKey);
+    }
+  }
+
+  function recordFailedAttempt(attemptKey) {
+    const now = Date.now();
+    const state = passwordAttempts.get(attemptKey) ?? { count: 0, blockedUntil: 0 };
+    state.count += 1;
+    if (state.count >= PASSWORD_MAX_ATTEMPTS) {
+      state.count = 0;
+      state.blockedUntil = now + PASSWORD_COOLDOWN_SECONDS * 1000;
+    }
+    passwordAttempts.set(attemptKey, state);
+  }
+
+  function clearFailedAttempt(attemptKey) {
+    passwordAttempts.delete(attemptKey);
+  }
 
   async function readStoredFile(storagePath) {
     if (typeof storagePath !== 'string' || !storagePath.trim()) {
@@ -783,7 +1001,7 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
     }
   }
 
-  async function createHtmlContent({ ownerUserId, title, htmlContent, body, bodyFormat }) {
+  async function createHtmlContent({ ownerUserId, title, htmlContent, body, bodyFormat, accessMode, accessPassword, accessHint }) {
     const normalizedTitle = normalizeTitle(title);
     const normalizedBodyFormat = bodyFormat === undefined || bodyFormat === null || bodyFormat === ''
       ? 'html'
@@ -809,6 +1027,16 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
       bodyFormat: normalizedBodyFormat,
       markdownRenderer
     });
+    const normalizedAccessMode = normalizeAccessMode(accessMode) ?? ACCESS_MODE_PUBLIC;
+    const normalizedPassword = normalizePassword(accessPassword);
+    const normalizedAccessHint = normalizeOptionalString(accessHint);
+    if (normalizedAccessMode === ACCESS_MODE_PASSWORD && !normalizedPassword) {
+      const error = new Error('Password mode requires accessPassword.');
+      error.statusCode = 400;
+      error.code = 'invalid_access_payload';
+      throw error;
+    }
+
     const richTextStorage = buildRichTextStorageFields(renderedContent);
 
     const { contentHash, record } = await createContentWithRetry(async () => {
@@ -823,7 +1051,10 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
         mime_type: 'text/html',
         file_size: 0,
         ...richTextStorage,
-        is_shared: false
+        is_shared: false,
+        access_mode: normalizedAccessMode,
+        access_password_hash: normalizedAccessMode === ACCESS_MODE_PASSWORD ? hashPassword(normalizedPassword) : '',
+        access_hint: normalizedAccessMode === ACCESS_MODE_PASSWORD ? (normalizedAccessHint ?? '') : ''
       });
 
       return { contentHash: nextContentHash, record: nextRecord };
@@ -838,10 +1069,19 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
     };
   }
 
-  async function createFileContent({ ownerUserId, title, filename, mimeType, contentBase64 }) {
+  async function createFileContent({ ownerUserId, title, filename, mimeType, contentBase64, accessMode, accessPassword, accessHint }) {
     const fileBuffer = decodeBase64File(contentBase64);
     const safeFilename = sanitizeFileName(filename);
     const normalizedTitle = normalizeTitle(title) || safeFilename;
+    const normalizedAccessMode = normalizeAccessMode(accessMode) ?? ACCESS_MODE_PUBLIC;
+    const normalizedPassword = normalizePassword(accessPassword);
+    const normalizedAccessHint = normalizeOptionalString(accessHint);
+    if (normalizedAccessMode === ACCESS_MODE_PASSWORD && !normalizedPassword) {
+      const error = new Error('Password mode requires accessPassword.');
+      error.statusCode = 400;
+      error.code = 'invalid_access_payload';
+      throw error;
+    }
 
     const { contentHash, record } = await createContentWithRetry(async () => {
       const nextContentHash = crypto.randomBytes(16).toString('hex');
@@ -862,7 +1102,10 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
           mime_type: typeof mimeType === 'string' && mimeType.trim() ? mimeType.trim() : 'application/octet-stream',
           file_size: fileBuffer.byteLength,
           html_content: '',
-          is_shared: false
+          is_shared: false,
+          access_mode: normalizedAccessMode,
+          access_password_hash: normalizedAccessMode === ACCESS_MODE_PASSWORD ? hashPassword(normalizedPassword) : '',
+          access_hint: normalizedAccessMode === ACCESS_MODE_PASSWORD ? (normalizedAccessHint ?? '') : ''
         });
 
         return { contentHash: nextContentHash, record: nextRecord };
@@ -943,7 +1186,7 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
     return buildContentDetail(config, record);
   }
 
-  async function updateContent({ ownerUserId, contentId, title, htmlContent, body, bodyFormat }) {
+  async function updateContent({ ownerUserId, contentId, title, htmlContent, body, bodyFormat, accessMode, accessPassword, accessHint }) {
     const record = await ensureOwnedContent(ownerUserId, contentId);
     const nextTitle = normalizeOptionalString(title);
     const updateRecord = {};
@@ -956,6 +1199,35 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
         throw error;
       }
       updateRecord.title = nextTitle;
+    }
+
+    const nextAccessMode = normalizeAccessMode(accessMode);
+    const nextAccessPassword = normalizePassword(accessPassword);
+    const nextAccessHint = normalizeOptionalString(accessHint);
+    if (nextAccessMode !== null || nextAccessPassword !== null || nextAccessHint !== null) {
+      const effectiveMode = nextAccessMode ?? resolveAccessSettings(record).accessMode;
+      if (effectiveMode === ACCESS_MODE_PASSWORD) {
+        const shouldRefreshPassword = nextAccessPassword !== null;
+        const currentHash = typeof record.access_password_hash === 'string' ? record.access_password_hash.trim() : '';
+        if (!shouldRefreshPassword && !currentHash) {
+          const error = new Error('Password mode requires accessPassword.');
+          error.statusCode = 400;
+          error.code = 'invalid_access_payload';
+          throw error;
+        }
+
+        updateRecord.access_mode = ACCESS_MODE_PASSWORD;
+        if (shouldRefreshPassword) {
+          updateRecord.access_password_hash = hashPassword(nextAccessPassword);
+        }
+        if (nextAccessHint !== null) {
+          updateRecord.access_hint = nextAccessHint;
+        }
+      } else {
+        updateRecord.access_mode = ACCESS_MODE_PUBLIC;
+        updateRecord.access_password_hash = '';
+        updateRecord.access_hint = '';
+      }
     }
 
     const nextBodyFormat = bodyFormat === undefined || bodyFormat === null || bodyFormat === ''
@@ -1016,6 +1288,15 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
     }
 
     const updatedRecord = await pocketbaseClient.updateContent(record.id, updateRecord);
+    if (updateRecord.access_mode === ACCESS_MODE_PASSWORD) {
+      const savedAccess = resolveAccessSettings(updatedRecord);
+      if (savedAccess.accessMode !== ACCESS_MODE_PASSWORD) {
+        const error = new Error('Password access fields were not persisted. Check database migration status.');
+        error.statusCode = 500;
+        error.code = 'access_fields_not_persisted';
+        throw error;
+      }
+    }
     return buildContentDetail(config, updatedRecord);
   }
 
@@ -1241,7 +1522,7 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
     };
   }
 
-  async function getPublicContentByHash(contentHash) {
+  async function getPublicContentByHash(contentHash, { cookies = {} } = {}) {
     if (typeof contentHash !== 'string' || !contentHash.trim()) {
       const error = new Error('contentHash is required.');
       error.statusCode = 400;
@@ -1264,6 +1545,10 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
       throw error;
     }
 
+    if (!isPublicAccessGranted({ access: 'content_hash', record, cookies })) {
+      denyProtectedAccess(record);
+    }
+
     if (record.type === 'rich_text') {
       return buildPublicHtmlPayload(config, record, 'content_hash');
     }
@@ -1272,7 +1557,7 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
     return buildPublicFilePayload(config, record, fileContent, 'content_hash');
   }
 
-  async function getPublicContentByShareHash(shareHash) {
+  async function getPublicContentByShareHash(shareHash, { cookies = {} } = {}) {
     if (typeof shareHash !== 'string' || !shareHash.trim()) {
       const error = new Error('shareHash is required.');
       error.statusCode = 400;
@@ -1311,6 +1596,74 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
     return buildPublicFilePayload(config, record, fileContent, 'share_hash');
   }
 
+  async function verifyPublicPasswordByContentHash({ contentHash, password, attemptKey = '', cookies = {} }) {
+    const record = await pocketbaseClient.getContentByHash((contentHash || '').trim());
+    if (!record || !record.is_shared) {
+      const error = new Error('Invalid password.');
+      error.statusCode = 403;
+      error.code = 'public_password_invalid';
+      throw error;
+    }
+
+    const settings = resolveAccessSettings(record);
+    if (settings.accessMode === ACCESS_MODE_PUBLIC) {
+      const issued = issuePublicAccessToken({ access: 'content_hash', record });
+      return { verified: true, ...issued, accessMode: settings.accessMode };
+    }
+
+    checkAttemptThrottle(`content_hash:${contentHash}:${attemptKey}`);
+    const provided = normalizePassword(password);
+    if (!provided || !verifyPassword(provided, record.access_password_hash)) {
+      recordFailedAttempt(`content_hash:${contentHash}:${attemptKey}`);
+      const error = new Error('Invalid password.');
+      error.statusCode = 403;
+      error.code = 'public_password_invalid';
+      throw error;
+    }
+
+    clearFailedAttempt(`content_hash:${contentHash}:${attemptKey}`);
+    const issued = issuePublicAccessToken({ access: 'content_hash', record });
+    return { verified: true, ...issued, accessMode: settings.accessMode, accessHint: settings.accessHint };
+  }
+
+  async function verifyPublicPasswordByShareHash({ shareHash, password, attemptKey = '' }) {
+    const shareLink = await pocketbaseClient.findShareLinkByHash((shareHash || '').trim());
+    if (!shareLink || shareLink.is_revoked) {
+      const error = new Error('Invalid password.');
+      error.statusCode = 403;
+      error.code = 'public_password_invalid';
+      throw error;
+    }
+
+    const record = await pocketbaseClient.getContentById(shareLink.content_id);
+    if (!record) {
+      const error = new Error('Invalid password.');
+      error.statusCode = 403;
+      error.code = 'public_password_invalid';
+      throw error;
+    }
+
+    const settings = resolveAccessSettings(record);
+    if (settings.accessMode === ACCESS_MODE_PUBLIC) {
+      const issued = issuePublicAccessToken({ access: 'share_hash', record });
+      return { verified: true, ...issued, accessMode: settings.accessMode };
+    }
+
+    checkAttemptThrottle(`share_hash:${shareHash}:${attemptKey}`);
+    const provided = normalizePassword(password);
+    if (!provided || !verifyPassword(provided, record.access_password_hash)) {
+      recordFailedAttempt(`share_hash:${shareHash}:${attemptKey}`);
+      const error = new Error('Invalid password.');
+      error.statusCode = 403;
+      error.code = 'public_password_invalid';
+      throw error;
+    }
+
+    clearFailedAttempt(`share_hash:${shareHash}:${attemptKey}`);
+    const issued = issuePublicAccessToken({ access: 'share_hash', record });
+    return { verified: true, ...issued, accessMode: settings.accessMode, accessHint: settings.accessHint };
+  }
+
   return {
     createHtmlContent,
     createFileContent,
@@ -1325,6 +1678,10 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
     revokeShareLink,
     deleteContent,
     getPublicContentByHash,
-    getPublicContentByShareHash
+    getPublicContentByShareHash,
+    verifyPublicPasswordByContentHash,
+    verifyPublicPasswordByShareHash
   };
 }
+
+export { defaultMarkdownRenderer };

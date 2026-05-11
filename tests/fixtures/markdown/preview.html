@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown Fixture 回归预览</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f5;color:#222;padding:24px}
+  h1{font-size:1.5rem;margin-bottom:4px}
+  .sub{margin-bottom:24px;color:#666;font-size:.9rem}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#ddd;border:1px solid #ddd;border-radius:8px;overflow:hidden}
+  .grid>div{background:#fff;padding:16px;overflow:auto}
+  .grid>.md{
+    font-family:'SF Mono',Monaco,monospace;font-size:.85rem;
+    white-space:pre-wrap;word-break:break-all;background:#fafafa;
+  }
+  .fixture{margin-bottom:32px}
+  .fixture h3{margin-bottom:8px;font-size:1.05rem;color:#a34f28}
+  .html-render{line-height:1.6}
+  /* 基础渲染样式 */
+  .html-render h1{font-size:1.5rem;margin:.5em 0}
+  .html-render h2{font-size:1.3rem;margin:.4em 0}
+  .html-render h3{font-size:1.15rem;margin:.3em 0}
+  .html-render h4,.html-render h5,.html-render h6{font-size:1rem;margin:.2em 0}
+  .html-render p{margin:.4em 0}
+  .html-render ul,.html-render ol{padding-left:1.5em;margin:.3em 0}
+  .html-render li{margin:.1em 0}
+  .html-render blockquote{border-left:3px solid #a34f28;padding:4px 12px;margin:.4em 0;background:#fff8f5}
+  .html-render pre{background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;overflow-x:auto;margin:.4em 0;font-size:.8rem}
+  .html-render code{font-family:'SF Mono',Monaco,monospace;font-size:.85em}
+  .html-render :not(pre)>code{background:#eee;padding:1px 4px;border-radius:3px}
+  .html-render table{border-collapse:collapse;margin:.4em 0;width:100%}
+  .html-render th,.html-render td{border:1px solid #ccc;padding:6px 10px;text-align:left}
+  .html-render th{background:#f0f0f0;font-weight:600}
+  .html-render img{max-width:100%;height:auto}
+  .html-render img[src^="data:"]{border:1px dashed #ccc;border-radius:4px}
+  .html-render hr{border:none;border-top:2px solid #ddd;margin:.6em 0}
+  .html-render input[type="checkbox"]{margin-right:.4em;accent-color:#a34f28}
+  .html-render a{color:#a34f28}
+  .label-row{display:flex;gap:1px;margin-bottom:-1px;font-size:.8rem;font-weight:600;color:#888}
+  .label-row span{flex:1;text-align:center;padding:4px}
+  .math-inline{font-family:'KaTeX_Main','Times New Roman',serif}
+</style>
+</head>
+<body>
+<h1>Markdown Fixture 回归预览</h1>
+<p class="sub">左侧 = 原始 Markdown 输入（永远不渲染） · 右侧 = renderer 输出的 HTML（按系统现状展示）</p>
+<div id="app"></div>
+
+<!-- KaTeX 延迟加载 -->
+<script>
+(function(){
+  var s=document.createElement('link');
+  s.rel='stylesheet';
+  s.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+  document.head.appendChild(s);
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+
+<script type="module">
+const FIXTURES = [
+  'headings','paragraphs','emphasis','ordered-list','unordered-list',
+  'nested-list','task-list','nested-task','blockquote','multiline-blockquote',
+  'inline-code','code-block','link','bare-url','bare-url-punct',
+  'image','table','table-escaped-pipe','inline-math','block-math',
+  'mixed-list','hr'
+];
+
+async function loadFixture(name) {
+  const md = await fetch(`./${name}.md`).then(r => r.text());
+  const html = await fetch(`./${name}.html`).then(r => r.text());
+  return { name, md, html };
+}
+
+const data = await Promise.all(FIXTURES.map(loadFixture));
+const app = document.getElementById('app');
+
+for (const { name, md, html } of data) {
+  const section = document.createElement('div');
+  section.className = 'fixture';
+
+  // 左侧：原始 Markdown 文本（$ 转义防止被 KaTeX 误渲染）
+  const mdDisplay = escapeHtml(md)
+    .replace(/\$\$/g, '<b style="color:#a34f28">$$</b>')
+    .replace(/\$/g, '<b style="color:#a34f28">$</b>');
+
+  section.innerHTML =
+    '<h3>' + escapeHtml(name) + '</h3>' +
+    '<div class="label-row"><span>Markdown 输入</span><span>HTML 输出</span></div>' +
+    '<div class="grid">' +
+      '<div class="md">' + mdDisplay + '</div>' +
+      '<div class="html-render">' + html + '</div>' +
+    '</div>';
+  app.appendChild(section);
+}
+
+// KaTeX 只渲染右侧 .html-render 列
+var renders = app.querySelectorAll('.html-render');
+if (typeof renderMathInElement !== 'undefined') {
+  renders.forEach(function(el) {
+    renderMathInElement(el, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false }
+      ]
+    });
+  });
+} else {
+  var iv = setInterval(function() {
+    if (typeof renderMathInElement !== 'undefined') {
+      clearInterval(iv);
+      renders.forEach(function(el) {
+        renderMathInElement(el, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ]
+        });
+      });
+    }
+  }, 200);
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

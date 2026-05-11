@@ -133,6 +133,45 @@ cd /opt/static-content-service
 sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d app
 ```
 
+## 8.1 切到 password 模式保存后仍像 public
+
+### 现象
+
+- owner 详情里切到 `password` 并保存
+- 刷新后看起来仍是 `public`
+- 公开访问未触发密码页/401
+
+### 先查什么
+
+1. 当前运行数据库的 `contents` 集合是否已包含：
+   - `access_mode`
+   - `access_password_hash`
+   - `access_hint`
+2. `pb_migrations/1700000004_add_content_access_mode_fields.js` 是否已在当前数据目录执行
+3. 重启是否只重启了 `app`，但 `PocketBase` 仍指向旧数据目录
+
+### 处理方式
+
+- 让当前数据库执行缺失 migration
+- 确认数据目录正确后重启服务
+- 重新进行 owner 保存与公开访问验证
+
+### 快速信号
+
+- 若接口返回 `access_fields_not_persisted`，基本可判定为 migration / schema 未生效，而不是前端问题。
+
+## 8.2 密码输错后无法继续重试
+
+### 现象
+
+- 公开页提交错误密码后，无法继续输入
+
+### 预期行为
+
+- 页面应保留原密码表单
+- 在密码输入框下方出现红色错误提示
+- 可直接再次输入重试
+
 ## 9. 容器显示 healthy，但业务仍异常
 
 ### 9.1 说明

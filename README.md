@@ -185,6 +185,12 @@ Phase 2 的稳定化证据见：
 - `POST /api/write/share/revoke`
 - `POST /api/write/delete`
 
+其中 `POST /api/write/content`、`POST /api/write/html`、`POST /api/write/file`、`POST /api/write/update` 支持以下访问控制字段：
+
+- `accessMode`: `public | password`（默认 `public`）
+- `accessPassword`: 明文输入，服务端只保存 hash
+- `accessHint`: 可选提示
+
 查询接口：
 
 - `GET /api/query/content/:contentId`
@@ -196,6 +202,13 @@ public 接口：
 
 - `GET /api/public/content/:contentHash`
 - `GET /api/public/share/:shareHash`
+- `POST /api/public/content/:contentHash/password`
+- `POST /api/public/share/:shareHash/password`
+
+说明：
+
+- 当内容访问模式为 `password` 且尚未验证时，`GET /api/public/*` 会返回 `401 public_password_required`。
+- 通过 `POST /api/public/*/password` 校验成功后，会建立短期访问态（HttpOnly cookie），在有效期内可访问正文。
 
 网页层：
 
@@ -210,6 +223,13 @@ public 接口：
 - `GET /web/public/search`
 - `GET /web/public/content/:contentHash`
 - `GET /web/public/share/:shareHash`
+- `POST /web/public/content/:contentHash/password`
+- `POST /web/public/share/:shareHash/password`
+
+说明：
+
+- 公开页访问命中 `password` 模式时会展示密码输入页。
+- 密码错误会在密码输入框下方提示红色错误文本，并可继续重试。
 
 ## 手工演示建议
 

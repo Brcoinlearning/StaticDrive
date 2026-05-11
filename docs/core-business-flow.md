@@ -269,11 +269,17 @@ Owner
   | A 路径:
   |   1) 按 content_hash 查 contents
   |   2) 判断 is_shared 是否为 true
+  |   3) 判断 access_mode：
+  |      - public: 继续返回正文
+  |      - password: 校验是否已有短期访问态（cookie）；无则返回 401 进入密码校验链路
   |
   | B 路径:
   |   1) 按 share_hash 查 share_links
   |   2) 判断 is_revoked 是否为 false
   |   3) 再按 content_id 查 contents
+  |   4) 判断 access_mode：
+  |      - public: 继续返回正文
+  |      - password: 校验是否已有短期访问态（cookie）；无则返回 401 进入密码校验链路
   v
 PocketBase.contents / share_links
   |
@@ -298,6 +304,28 @@ PocketBase.contents / share_links
   | file      -> 返回真实二进制下载响应
   v
 公开访客
+```
+
+当返回 `401 public_password_required` 后，访客应走密码校验入口：
+
+```text
+公开访客
+  |
+  | POST /api/public/content/:contentHash/password
+  | 或 POST /api/public/share/:shareHash/password
+  | 或网页表单 POST /web/public/*/password
+  v
+业务壳 contentService.verifyPublicPasswordBy*
+  |
+  | 1) 校验密码 hash（不持久化明文）
+  | 2) 错误密码：拒绝并允许重试
+  | 3) 正确密码：签发短期访问态 cookie
+  v
+公开访客
+  |
+  | 重新访问 /api/public/* 或 /web/public/*
+  v
+可读取正文/下载文件
 ```
 
 这里有两个不同的业务状态：

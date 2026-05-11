@@ -33,7 +33,7 @@ function buildPreviewSrcdoc(html, options = {}) {
   const mathScripts = enableMath
     ? '<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script><script>window.addEventListener("DOMContentLoaded",()=>{if(window.renderMathInElement){window.renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}]});}});</script>'
     : '';
-  const previewHtml = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;padding:28px;color:#231a14;font:16px/1.75 Georgia,"Times New Roman",serif;background:#fff;}img{max-width:100%;height:auto;display:block;margin:18px auto;border-radius:14px;}p{margin:0 0 1em;}h1,h2,h3,h4,h5,h6{margin:1.2em 0 .55em;line-height:1.2;color:#1f1611;}ul,ol{padding-left:1.4rem;margin:0 0 1em;}blockquote{margin:1.2em 0;padding:14px 16px;border-left:4px solid #a34f28;background:rgba(163,79,40,.08);border-radius:0 12px 12px 0;}pre{overflow:auto;padding:16px;border-radius:14px;background:#f7f1e8;border:1px solid rgba(112,79,46,.16);}code{font-family:"SFMono-Regular",Menlo,monospace;font-size:.92em;}table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.95rem;}th,td{border:1px solid rgba(112,79,46,.18);padding:10px 12px;vertical-align:top;}th{background:#f7efe3;text-align:left;}hr{border:0;border-top:1px solid rgba(112,79,46,.18);margin:1.5em 0;}.math-inline,.math-block{font-family:"Times New Roman",serif;}.math-inline{display:inline;}.math-block{display:block;margin:1.2em 0;padding:14px 16px;border:1px solid rgba(112,79,46,.18);border-radius:14px;white-space:pre-wrap;overflow:auto;}li input[type="checkbox"]{margin-right:.5em;vertical-align:middle;accent-color:#a34f28;}.katex-display{overflow:auto;overflow-y:hidden;padding:.2rem 0;}a{color:#7e3919;text-decoration:none;}a:hover{text-decoration:underline;}</style>' + mathStyles + '</head><body>' + contentHtml + mathScripts + '</body></html>';
+  const previewHtml = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;padding:28px;color:#231a14;font:16px/1.75 Georgia,"Times New Roman",serif;background:#fff;}img{max-width:100%;height:auto;display:block;margin:18px auto;border-radius:14px;}p{margin:0 0 1em;}h1,h2,h3,h4,h5,h6{margin:1.2em 0 .55em;line-height:1.2;color:#1f1611;}ul,ol{padding-left:1.4rem;margin:0 0 1em;}blockquote{margin:1.2em 0;padding:14px 16px;border-left:4px solid #a34f28;background:rgba(163,79,40,.08);border-radius:0 12px 12px 0;}pre{overflow:auto;padding:16px;border-radius:14px;background:#f7f1e8;border:1px solid rgba(112,79,46,.16);}code{font-family:"SFMono-Regular",Menlo,monospace;font-size:.92em;}body :not(pre)>code{background:rgba(112,79,46,.08);padding:2px 6px;border-radius:5px;color:#8b5a12;}table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.95rem;}th,td{border:1px solid rgba(112,79,46,.18);padding:10px 12px;vertical-align:top;}th{background:#f7efe3;text-align:left;}hr{border:0;border-top:1px solid rgba(112,79,46,.18);margin:1.5em 0;}.math-inline{display:inline;}.math-block{display:block;margin:1.2em 0;padding:14px 16px;border:1px solid rgba(112,79,46,.18);border-radius:14px;white-space:pre-wrap;overflow:auto;}li input[type="checkbox"]{margin-right:.5em;vertical-align:middle;accent-color:#a34f28;}.katex-display{overflow:auto;overflow-y:hidden;padding:.2rem 0;}a{color:#7e3919;text-decoration:none;}a:hover{text-decoration:underline;}</style>' + mathStyles + '</head><body>' + contentHtml + mathScripts + '</body></html>';
   return escapeHtml(previewHtml);
 }
 
@@ -904,6 +904,8 @@ function renderPublicItemCard(item) {
 }
 
 function renderOwnerUpdatePanel(detail) {
+  const currentAccessMode = detail.accessMode === 'password' ? 'password' : 'public';
+  const passwordFieldsStyle = currentAccessMode === 'password' ? '' : ' style="display:none;"';
   const bodyField = detail.type === 'rich_text'
     ? `<div class="field-stack"><label for="body"><strong>正文内容</strong></label><textarea id="body" name="body">${escapeHtml(detail.body || '')}</textarea></div><div class="field-stack"><label for="bodyFormat"><strong>正文格式</strong></label><select id="bodyFormat" name="bodyFormat"><option value="html"${detail.bodyFormat === 'html' ? ' selected' : ''}>HTML</option><option value="markdown"${detail.bodyFormat === 'markdown' ? ' selected' : ''}>Markdown</option></select></div>`
     : '<p class="subtle-note">文件内容当前不支持在浏览器内替换二进制，只支持更新标题。</p>';
@@ -917,11 +919,52 @@ function renderOwnerUpdatePanel(detail) {
         <input id="title" type="text" name="title" value="${escapeHtml(detail.title || '')}">
       </div>
       ${bodyField}
+      <div class="field-stack">
+        <label for="accessMode"><strong>访问模式</strong></label>
+        <select id="accessMode" name="accessMode">
+          <option value="public"${currentAccessMode === 'public' ? ' selected' : ''}>public（公开）</option>
+          <option value="password"${currentAccessMode === 'password' ? ' selected' : ''}>password（密码保护）</option>
+        </select>
+      </div>
+      <div class="field-stack" data-password-field="password"${passwordFieldsStyle}>
+        <label for="accessPassword"><strong>访问密码</strong></label>
+        <input id="accessPassword" type="password" name="accessPassword" placeholder="留空表示不修改当前密码；切回 public 时会自动清除"${currentAccessMode === 'password' ? '' : ' disabled'}>
+      </div>
+      <div class="field-stack" data-password-field="hint"${passwordFieldsStyle}>
+        <label for="accessHint"><strong>访问提示（可选）</strong></label>
+        <input id="accessHint" type="text" name="accessHint" value="${escapeHtml(detail.accessHint || '')}" placeholder="例如：项目代号 / 分享口令提示"${currentAccessMode === 'password' ? '' : ' disabled'}>
+      </div>
       <div class="action-row">
         <button type="submit">保存更新</button>
         <span class="subtle-note">更新后内容 hash 不变，公开访问地址保持不变。</span>
       </div>
     </form>
+    <script>
+      (() => {
+        const mode = document.getElementById('accessMode');
+        const passwordGroup = document.querySelector('[data-password-field="password"]');
+        const hintGroup = document.querySelector('[data-password-field="hint"]');
+        const passwordInput = document.getElementById('accessPassword');
+        const hintInput = document.getElementById('accessHint');
+        if (!mode || !passwordGroup || !hintGroup || !passwordInput || !hintInput) {
+          return;
+        }
+
+        const sync = () => {
+          const enabled = mode.value === 'password';
+          passwordGroup.style.display = enabled ? '' : 'none';
+          hintGroup.style.display = enabled ? '' : 'none';
+          passwordInput.disabled = !enabled;
+          hintInput.disabled = !enabled;
+          if (!enabled) {
+            passwordInput.value = '';
+          }
+        };
+
+        mode.addEventListener('change', sync);
+        sync();
+      })();
+    </script>
   </section>`;
 }
 
@@ -1055,7 +1098,7 @@ export function renderOwnerDetailPage(detail) {
     heading: detail.title || detail.originalFilename || 'Owner 内容详情',
     description: `内容类型：${detail.type === 'rich_text' ? '富文本' : '文件'}；当前状态：${detail.isShared ? '已公开' : '未公开'}。`,
     mode: 'owner',
-    body: `${renderFlash(detail.flash)}<section class="toolbar"><div><strong>单内容操作中心</strong><div class="muted">在这个页面完成查看、分享、撤销分享、更新和删除。</div></div><div class="action-row"><a class="btn secondary" href="/web/list">返回列表</a><a class="btn secondary" href="/web/credential">凭据与会话</a></div></section><section class="detail-layout"><div class="detail-main"><section class="panel"><h3>摘要</h3><div class="meta-grid"><div><strong>Content ID</strong><span>${escapeHtml(detail.contentId)}</span></div><div><strong>内容 Hash</strong><span>${escapeHtml(detail.contentHash)}</span></div><div><strong>Owner</strong><span>${escapeHtml(detail.ownerUserId)}</span></div><div><strong>共享状态</strong><span>${escapeHtml(detail.isShared ? '已分享' : '未分享')}</span></div></div></section>${contentBlock}</div><aside class="detail-side">${renderOwnerUpdatePanel(detail)}${renderOwnerActionPanel(detail)}</aside></section>`
+    body: `${renderFlash(detail.flash)}<section class="toolbar"><div><strong>单内容操作中心</strong><div class="muted">在这个页面完成查看、分享、撤销分享、更新和删除。</div></div><div class="action-row"><a class="btn secondary" href="/web/list">返回列表</a><a class="btn secondary" href="/web/credential">凭据与会话</a></div></section><section class="detail-layout"><div class="detail-main"><section class="panel"><h3>摘要</h3><div class="meta-grid"><div><strong>Content ID</strong><span>${escapeHtml(detail.contentId)}</span></div><div><strong>内容 Hash</strong><span>${escapeHtml(detail.contentHash)}</span></div><div><strong>Owner</strong><span>${escapeHtml(detail.ownerUserId)}</span></div><div><strong>共享状态</strong><span>${escapeHtml(detail.isShared ? '已分享' : '未分享')}</span></div><div><strong>访问模式</strong><span>${escapeHtml(detail.accessMode === 'password' ? 'password' : 'public')}</span></div></div></section>${contentBlock}</div><aside class="detail-side">${renderOwnerUpdatePanel(detail)}${renderOwnerActionPanel(detail)}</aside></section>`
   });
 }
 
@@ -1071,6 +1114,23 @@ export function renderPublicContentPage(payload) {
     mode: 'public',
     eyebrow: 'Public Delivery',
     body
+  });
+}
+
+export function renderPublicPasswordPage({ access, hash, accessHint = null, message = '请输入访问密码' }) {
+  const isShare = access === 'share_hash';
+  const action = isShare
+    ? `/web/public/share/${encodeURIComponent(hash)}/password`
+    : `/web/public/content/${encodeURIComponent(hash)}/password`;
+  const hasError = typeof message === 'string' && message.includes('错误');
+
+  return renderLayout({
+    title: '公开内容密码验证',
+    heading: '公开内容密码验证',
+    description: '该内容受密码保护，验证通过后可在短时间内继续访问。',
+    mode: 'public',
+    eyebrow: 'Protected Access',
+    body: `<section class="panel"><h3>请输入访问密码</h3><p class="muted">${hasError ? '该内容受密码保护，请输入正确密码。' : escapeHtml(message)}</p>${accessHint ? `<p class="muted">提示：${escapeHtml(accessHint)}</p>` : ''}<form method="post" action="${escapeHtml(action)}" class="field-stack"><div class="field-stack"><label for="password"><strong>访问密码</strong></label><input id="password" type="password" name="password" required>${hasError ? `<p style="margin:6px 0 0;color:var(--danger);">${escapeHtml(message)}</p>` : ''}</div><div class="action-row"><button type="submit">验证并访问</button></div></form></section>`
   });
 }
 

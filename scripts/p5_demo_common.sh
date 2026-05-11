@@ -12,76 +12,7 @@ P5_DEMO_OWNER_WEB_BASE_URL="${P5_DEMO_OWNER_WEB_BASE_URL:-http://127.0.0.1:8787/
 P5_DEMO_PUBLIC_WEB_BASE_URL="${P5_DEMO_PUBLIC_WEB_BASE_URL:-http://127.0.0.1:8787/web/public}"
 P5_DEMO_TITLE="${P5_DEMO_TITLE:-P5 通用 Markdown 能力展示}"
 P5_DEMO_BODY_FORMAT="${P5_DEMO_BODY_FORMAT:-markdown}"
-P5_DEMO_BODY="${P5_DEMO_BODY:-$(cat <<'BODYEOF'
-# P5 通用 Markdown 能力展示
-
-这是一段用于演示通用 Markdown 能力的正文，覆盖 LLM / agent 生成技术内容时最常见的表达方式。
-
-任务列表：
-- [x] 已完成：支持 task list
-- [x] 已完成：支持裸链接自动识别
-- [x] 已完成：支持标准图片、表格、代码块
-- [x] 已完成：支持多行引用合并
-- [ ] 待扩展：更复杂的 Markdown 方言
-
-嵌套任务：
-- [x] 父任务
-  - [ ] 子任务
-- [ ] 邻接任务
-
-多级列表：
-- 平台层
-  - 服务层
-    - 渲染器
-
-混合列表：
-1. 设计输入
-   - 明确边界
-2. 生成输出
-
-裸链接边界：
-- 常规： https://example.com/docs/markdown-agent-demo
-- 尾标点： https://example.com/docs.
-- 括号包裹： (https://example.com/a)
-
-引用：
-> 这是一个面向技术内容演示的通用 Markdown 样例。
-> 第二行用于验证多行引用会合并展示。
-
-行内公式：$E = mc^2$
-
-块公式：
-$$
-f(x) = x^2 + 2x + 1
-$$
-
-表格：
-
-| 能力 | 当前状态 | 说明 |
-|------|------|------|
-| Task list | 已支持 | `- [x]` / `- [ ]` |
-| 裸链接 | 已支持 | 自动转为超链接 |
-| 代码块 | 已支持 | 支持语言类名 |
-| 数学公式 | 已支持 | 预览页可排版 |
-
-表格转义：
-
-| 字段 | 示例 |
-| --- | --- |
-| escaped pipe | a \| b |
-
-代码块：
-
-```js
-const pipeline = ['ingest', 'render', 'publish'];
-console.log(pipeline.join(' -> '));
-```
-
-标准图片：
-
-![演示图片](https://picsum.photos/seed/p5-markdown-demo/640/320)
-BODYEOF
-)}"
+P5_DEMO_BODY="${P5_DEMO_BODY:-$([ -f "$ROOT_DIR/tests/fixtures/markdown/demo-showcase.md" ] && cat "$ROOT_DIR/tests/fixtures/markdown/demo-showcase.md" || { echo '# Demo'; echo 'content missing, regenerate fixtures.'; })}"
 
 ensure_p5_demo_state_dir() {
   mkdir -p "$P5_DEMO_STATE_DIR"

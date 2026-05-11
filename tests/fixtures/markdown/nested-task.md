@@ -1,0 +1,19 @@
+- [x] Plan the project
+  - [x] Define scope
+  - [x] Set milestones
+  - [ ] Assign tasks
+- [ ] Design phase
+  - [ ] Create wireframes
+    - [ ] Homepage layout
+    - [ ] Dashboard layout
+  - [ ] Design mockups
+    - [x] Color palette approved
+    - [ ] Typography chosen
+- [ ] Development
+  - [ ] Set up repository
+    - [x] Initialize project
+    - [x] Configure CI/CD
+    - [ ] Add code owners
+  - [ ] Implement features
+    - [ ] User authentication
+    - [ ] Payment integration

@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 import { createApp } from '../src/app.js';
-import { createContentService } from '../src/content/service.js';
+import { createContentService, defaultMarkdownRenderer } from '../src/content/service.js';
 import { createRequest, createResponseCapture } from './helpers.js';
 
 function createConfig(workspaceDir) {
@@ -3083,6 +3084,56 @@ test('web owner detail renders update panel for rich text content', async () => 
   assert.match(response.rawBody, /action="\/web\/action\/update"/);
   assert.match(response.rawBody, /textarea id="body"/);
   assert.match(response.rawBody, /select id="bodyFormat"/);
+  assert.match(response.rawBody, /select id="accessMode"/);
+  assert.match(response.rawBody, /input id="accessPassword" type="password"/);
+  assert.match(response.rawBody, /input id="accessHint" type="text"/);
+});
+
+test('web owner detail keeps password mode selected after refresh', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-owner-access-mode-refresh'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async getContentById() {
+        return {
+          id: 'content_access_mode_refresh',
+          owner_user_id: 'user_123',
+          type: 'rich_text',
+          title: '密码模式内容',
+          original_filename: '',
+          content_hash: 'accessmoderefreshhash1234access1',
+          storage_path: '',
+          mime_type: 'text/html',
+          file_size: 0,
+          html_content: '<p>protected</p>',
+          access_mode: 'password',
+          access_password_hash: 'scrypt:aa:bb',
+          access_hint: 'hint',
+          is_shared: true,
+          created: '2026-04-18 15:45:00.000Z',
+          updated: '2026-04-18 15:45:00.000Z'
+        };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/detail/content_access_mode_refresh',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /option value="password" selected/);
+  assert.match(response.rawBody, /value="hint"/);
 });
 
 test('web owner batch action redirects back to list with success flash', async () => {
@@ -3948,4 +3999,279 @@ test('web auth logout clears owner session cookie', async () => {
   assert.equal(response.statusCode, 302);
   assert.match(response.headers.location, /^\/web\/auth\/login\?/);
   assert.match(response.headers['set-cookie'], /Max-Age=0/);
+});
+
+test('public content remains directly accessible when access mode is public', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-public-access-public'), {
+    pocketbaseClient: {
+      async getContentByHash() {
+        return {
+          id: 'content_public_mode_1', owner_user_id: 'user_123', type: 'rich_text', title: 'Public Content',
+          original_filename: '', content_hash: 'publicmodehash1234publicmode1234ab', storage_path: '', mime_type: 'text/html',
+          file_size: 0, html_content: '<p>public body</p>', body_source: '<p>public body</p>', body_format: 'html',
+          is_shared: true, access_mode: 'public', access_password_hash: '', access_hint: '', created: '2026-04-18', updated: '2026-04-18'
+        };
+      },
+      async healthCheck() { return { code: 200 }; }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({ method: 'GET', url: '/api/public/content/publicmodehash1234publicmode1234ab', headers: { host: '127.0.0.1:8787' } }), response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.type, 'rich_text');
+});
+
+test('password-protected content rejects direct access before verification', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-public-access-protected'), {
+    pocketbaseClient: {
+      async getContentByHash() {
+        return {
+          id: 'content_pw_1', owner_user_id: 'user_123', type: 'rich_text', title: 'Protected Content',
+          original_filename: '', content_hash: 'protectedhash1234protectedhash12', storage_path: '', mime_type: 'text/html',
+          file_size: 0, html_content: '<p>secret</p>', body_source: '<p>secret</p>', body_format: 'html',
+          is_shared: true, access_mode: 'password', access_password_hash: 'scrypt:00112233445566778899aabbccddeeff:0011', access_hint: 'abc', created: '2026-04-18', updated: '2026-04-18'
+        };
+      },
+      async healthCheck() { return { code: 200 }; }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({ method: 'GET', url: '/api/public/content/protectedhash1234protectedhash12', headers: { host: '127.0.0.1:8787' } }), response);
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.body.error, 'public_password_required');
+});
+
+test('web password submit shows retry page when password is wrong', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-public-password-retry'), {
+    contentService: {
+      async verifyPublicPasswordByContentHash() {
+        const error = new Error('Invalid password.');
+        error.statusCode = 403;
+        error.code = 'public_password_invalid';
+        throw error;
+      }
+    },
+    pocketbaseClient: {
+      async healthCheck() { return { code: 200 }; }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/public/content/protectedhash1234protectedhash12/password',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'password=wrong'
+  }), response);
+
+  assert.equal(response.statusCode, 401);
+  assert.match(response.rawBody, /请输入访问密码/);
+  assert.match(response.rawBody, /密码错误，请重试/);
+  assert.match(response.rawBody, /action="\/web\/public\/content\/protectedhash1234protectedhash12\/password"/);
+  assert.doesNotMatch(response.rawBody, /重新尝试访问/);
+});
+
+test('password verification success grants short-lived cookie and allows access', async () => {
+  const service = createContentService({
+    config: createConfig('/tmp/shutong49-service-access-verify-ok'),
+    pocketbaseClient: {
+      async getContentByHash() {
+        return {
+          id: 'content_pw_ok_1', owner_user_id: 'user_123', type: 'rich_text', title: 'Protected OK',
+          original_filename: '', content_hash: 'protectedokhash1234protectedok12', storage_path: '', mime_type: 'text/html',
+          file_size: 0, html_content: '<p>ok</p>', body_source: '<p>ok</p>', body_format: 'html',
+          is_shared: true, access_mode: 'password',
+          access_password_hash: 'scrypt:11223344556677889900aabbccddeeff:' + crypto.scryptSync('pw123', Buffer.from('11223344556677889900aabbccddeeff', 'hex'), 64).toString('hex'),
+          access_hint: '', created: '2026-04-18', updated: '2026-04-18'
+        };
+      }
+    }
+  });
+
+  const verified = await service.verifyPublicPasswordByContentHash({ contentHash: 'protectedokhash1234protectedok12', password: 'pw123', attemptKey: '127.0.0.1' });
+  assert.equal(verified.verified, true);
+  assert.match(verified.setCookie, /shutong49_public_access_content_hash=/);
+
+  const token = decodeURIComponent(verified.setCookie.split(';')[0].split('=')[1]);
+  const payload = await service.getPublicContentByHash('protectedokhash1234protectedok12', {
+    cookies: { shutong49_public_access_content_hash: token }
+  });
+  assert.equal(payload.type, 'rich_text');
+});
+
+test('password verification rejects wrong password', async () => {
+  const service = createContentService({
+    config: createConfig('/tmp/shutong49-service-access-verify-fail'),
+    pocketbaseClient: {
+      async getContentByHash() {
+        return {
+          id: 'content_pw_fail_1', owner_user_id: 'user_123', type: 'rich_text', title: 'Protected Fail',
+          original_filename: '', content_hash: 'protectedfailhash1234protectedf1', storage_path: '', mime_type: 'text/html',
+          file_size: 0, html_content: '<p>fail</p>', body_source: '<p>fail</p>', body_format: 'html',
+          is_shared: true, access_mode: 'password',
+          access_password_hash: 'scrypt:11223344556677889900aabbccddeeff:' + crypto.scryptSync('right', Buffer.from('11223344556677889900aabbccddeeff', 'hex'), 64).toString('hex'),
+          access_hint: '', created: '2026-04-18', updated: '2026-04-18'
+        };
+      }
+    }
+  });
+
+  await assert.rejects(
+    () => service.verifyPublicPasswordByContentHash({ contentHash: 'protectedfailhash1234protectedf1', password: 'wrong', attemptKey: '127.0.0.1' }),
+    (error) => error.statusCode === 403
+  );
+});
+
+test('content can switch from password mode back to public mode', async () => {
+  const updates = [];
+  const service = createContentService({
+    config: createConfig('/tmp/shutong49-service-access-switch'),
+    pocketbaseClient: {
+      async getContentById() {
+        return {
+          id: 'content_switch_1', owner_user_id: 'user_123', type: 'rich_text', title: 'Switch',
+          original_filename: '', content_hash: 'switchhash1234switchhash1234swit', storage_path: '', mime_type: 'text/html',
+          file_size: 0, html_content: '<p>switch</p>', body_source: '<p>switch</p>', body_format: 'html',
+          is_shared: true, access_mode: 'password', access_password_hash: 'scrypt:aa:bb', access_hint: 'h', created: '2026-04-18', updated: '2026-04-18'
+        };
+      },
+      async updateContent(id, record) {
+        updates.push({ id, record });
+        return {
+          id: 'content_switch_1', owner_user_id: 'user_123', type: 'rich_text', title: 'Switch',
+          original_filename: '', content_hash: 'switchhash1234switchhash1234swit', storage_path: '', mime_type: 'text/html',
+          file_size: 0, html_content: '<p>switch</p>', body_source: '<p>switch</p>', body_format: 'html',
+          is_shared: true, access_mode: record.access_mode || 'public', access_password_hash: record.access_password_hash || '', access_hint: record.access_hint || '', created: '2026-04-18', updated: '2026-04-18'
+        };
+      }
+    }
+  });
+
+  const result = await service.updateContent({ ownerUserId: 'user_123', contentId: 'content_switch_1', accessMode: 'public' });
+  assert.equal(updates[0].record.access_mode, 'public');
+  assert.equal(updates[0].record.access_password_hash, '');
+});
+
+// ──────────────────────────────────────────────
+//  Markdown Fixture Regression Tests
+// ──────────────────────────────────────────────
+
+function collectMarkdownFixtures() {
+  const fixturesDir = path.join(import.meta.dirname, 'fixtures', 'markdown');
+  const entries = fs.readdirSync(fixturesDir);
+  const fixtures = [];
+
+  for (const entry of entries) {
+    if (!entry.endsWith('.md')) continue;
+    const baseName = entry.replace(/\.md$/, '');
+    const htmlFile = `${baseName}.html`;
+    const htmlPath = path.join(fixturesDir, htmlFile);
+
+    if (!entries.includes(htmlFile)) {
+      console.warn(`Skipping fixture "${baseName}": missing expected .html file`);
+      continue;
+    }
+
+    fixtures.push({
+      name: baseName,
+      mdPath: path.join(fixturesDir, entry),
+      htmlPath
+    });
+  }
+
+  return fixtures.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+const fixtures = collectMarkdownFixtures();
+
+for (const fixture of fixtures) {
+  test(`fixture/render ${fixture.name}`, () => {
+    const mdContent = fs.readFileSync(fixture.mdPath, 'utf-8');
+    const expectedHtml = fs.readFileSync(fixture.htmlPath, 'utf-8');
+    const actualHtml = defaultMarkdownRenderer(mdContent);
+    assert.equal(actualHtml, expectedHtml,
+      `Fixture "${fixture.name}" output mismatch.\nExpected: ${JSON.stringify(expectedHtml)}\nActual:   ${JSON.stringify(actualHtml)}`);
+  });
+}
+
+// API-level integration assertions for body/bodyFormat/renderedBodyHtml consistency
+
+test('fixture/integration markdown write stores body and rendered html consistently', async () => {
+  const mdBody = '# Integration Test\n\nBody and **format** consistency.\n';
+  const expectedHtml = '<h1>Integration Test</h1><p>Body and <strong>format</strong> consistency.</p>';
+
+  let storedRecord = null;
+  const app = createApp(createConfig('/tmp/shutong49-fixture-int-write'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Tester', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        storedRecord = record;
+        return { id: 'int_content_1' };
+      },
+      async healthCheck() { return { code: 200 }; }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/json',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: JSON.stringify({ title: 'Integration', body: mdBody, bodyFormat: 'markdown' })
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(storedRecord.body_source, mdBody);
+  assert.equal(storedRecord.body_format, 'markdown');
+  assert.equal(storedRecord.html_content, expectedHtml);
+  assert.equal(response.body.contentId, 'int_content_1');
+  assert.equal(response.body.type, 'rich_text');
+});
+
+test('fixture/integration html write uses body as rendered html directly', async () => {
+  const htmlBody = '<h1>HTML Test</h1><p>Direct pass-through.</p>';
+
+  let storedRecord = null;
+  const app = createApp(createConfig('/tmp/shutong49-fixture-int-html'), {
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Tester', api_key: 'valid-key' };
+      },
+      async createContent(record) {
+        storedRecord = record;
+        return { id: 'int_html_1' };
+      },
+      async healthCheck() { return { code: 200 }; }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/api/write/content',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/json',
+      'x-shutong49-api-key': 'valid-key'
+    },
+    body: JSON.stringify({ title: 'HTML Integration', body: htmlBody, bodyFormat: 'html' })
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(storedRecord.body_source, htmlBody);
+  assert.equal(storedRecord.body_format, 'html');
+  assert.equal(storedRecord.html_content, htmlBody);
+  assert.equal(response.body.contentId, 'int_html_1');
+  assert.equal(response.body.type, 'rich_text');
 });

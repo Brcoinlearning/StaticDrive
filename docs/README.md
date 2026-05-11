@@ -24,6 +24,7 @@
 - `docs/P2-Stabilization/`：稳定化阶段的范围、诊断、冷启动与收口文档。
 - `docs/P3-Owner-Frontend/`：owner 网页层产品化相关的准备文档与手工检查文档。
 - `docs/P4-Deployment/`：部署、Docker、虚拟机、Nginx、systemd、上线与验收相关文档。
+- `docs/P5-String-Resource-Access/`：P5 内容对象边界 — `bodyFormat + Markdown` 统一契约、fixture 回归测试、demo 展示与收口文档。
 
 ## 4. 使用建议
 

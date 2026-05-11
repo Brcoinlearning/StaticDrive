@@ -4,7 +4,7 @@ import { createContentService } from './content/service.js';
 import { getErrorDetails, getErrorDiagnostic, serializeErrorForLog } from './errors.js';
 import { badRequest, binary, errorResponse, forbidden, gone, json, methodNotAllowed, notFound, readJson } from './http/json.js';
 import { PocketBaseClient } from './pocketbase/client.js';
-import { renderCredentialPage, renderErrorPage, renderLoginPage, renderOwnerDetailPage, renderOwnerListPage, renderOwnerSearchPage, renderPublicContentPage, renderPublicListPage, renderPublicSearchPage } from './web/page-renderer.js';
+import { renderCredentialPage, renderErrorPage, renderLoginPage, renderOwnerDetailPage, renderOwnerListPage, renderOwnerSearchPage, renderPublicContentPage, renderPublicListPage, renderPublicPasswordPage, renderPublicSearchPage } from './web/page-renderer.js';
 
 function routeGroup(pathname) {
   if (pathname === '/api/health') return 'health';
@@ -30,6 +30,14 @@ function html(response, statusCode, body) {
     'content-type': 'text/html; charset=utf-8'
   });
   response.end(body);
+}
+
+function jsonWithHeaders(response, statusCode, body, headers = {}) {
+  response.writeHead(statusCode, {
+    'content-type': 'application/json; charset=utf-8',
+    ...headers
+  });
+  response.end(JSON.stringify(body));
 }
 
 function redirect(response, location, headers = {}) {
@@ -140,6 +148,29 @@ function appendOwnerListState(nextUrl, form) {
   }
 }
 
+function parseCookieHeader(cookieHeader) {
+  if (typeof cookieHeader !== 'string' || !cookieHeader.trim()) {
+    return {};
+  }
+
+  return cookieHeader
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const separator = part.indexOf('=');
+      if (separator === -1) {
+        return acc;
+      }
+      const key = part.slice(0, separator).trim();
+      const value = part.slice(separator + 1).trim();
+      if (key) {
+        acc[key] = decodeURIComponent(value);
+      }
+      return acc;
+    }, {});
+}
+
 async function readForm(request) {
   const chunks = [];
   for await (const chunk of request) {
@@ -223,22 +254,73 @@ export function createApp(config, dependencies = {}) {
     }
 
     if (group === 'public') {
-      if (request.method !== 'GET') {
+      if (request.method !== 'GET' && request.method !== 'POST') {
         methodNotAllowed(response);
         return;
       }
 
       try {
+        const cookies = parseCookieHeader(request.headers.cookie);
         if (url.pathname.startsWith('/api/public/content/')) {
+          if (url.pathname.endsWith('/password')) {
+            if (request.method !== 'POST') {
+              methodNotAllowed(response);
+              return;
+            }
+            const contentHash = url.pathname.slice('/api/public/content/'.length, -('/password'.length));
+            const body = await readJson(request);
+            const result = await contentService.verifyPublicPasswordByContentHash({
+              contentHash,
+              password: body.password,
+              attemptKey: request.headers['x-forwarded-for'] || request.headers['x-real-ip'] || request.socket?.remoteAddress || 'unknown'
+            });
+            jsonWithHeaders(response, 200, {
+              verified: result.verified,
+              expiresInSeconds: result.expiresInSeconds,
+              accessMode: result.accessMode
+            }, {
+              'set-cookie': result.setCookie
+            });
+            return;
+          }
+          if (request.method !== 'GET') {
+            methodNotAllowed(response);
+            return;
+          }
           const contentHash = url.pathname.slice('/api/public/content/'.length);
-          const result = await contentService.getPublicContentByHash(contentHash);
+          const result = await contentService.getPublicContentByHash(contentHash, { cookies });
           sendPublicContent(response, result);
           return;
         }
 
         if (url.pathname.startsWith('/api/public/share/')) {
+          if (url.pathname.endsWith('/password')) {
+            if (request.method !== 'POST') {
+              methodNotAllowed(response);
+              return;
+            }
+            const shareHash = url.pathname.slice('/api/public/share/'.length, -('/password'.length));
+            const body = await readJson(request);
+            const result = await contentService.verifyPublicPasswordByShareHash({
+              shareHash,
+              password: body.password,
+              attemptKey: request.headers['x-forwarded-for'] || request.headers['x-real-ip'] || request.socket?.remoteAddress || 'unknown'
+            });
+            jsonWithHeaders(response, 200, {
+              verified: result.verified,
+              expiresInSeconds: result.expiresInSeconds,
+              accessMode: result.accessMode
+            }, {
+              'set-cookie': result.setCookie
+            });
+            return;
+          }
+          if (request.method !== 'GET') {
+            methodNotAllowed(response);
+            return;
+          }
           const shareHash = url.pathname.slice('/api/public/share/'.length);
-          const result = await contentService.getPublicContentByShareHash(shareHash);
+          const result = await contentService.getPublicContentByShareHash(shareHash, { cookies });
           sendPublicContent(response, result);
           return;
         }
@@ -246,6 +328,10 @@ export function createApp(config, dependencies = {}) {
         notFound(response);
         return;
       } catch (error) {
+        if (error.statusCode === 401) {
+          errorResponse(response, 401, error.code || 'public_password_required', 'Password verification required.', error.details);
+          return;
+        }
         respondApiError(response, request, error, 'Public content access failed.');
         return;
       }
@@ -332,12 +418,13 @@ export function createApp(config, dependencies = {}) {
     }
 
     if (group === 'public-page') {
-      if (request.method !== 'GET') {
+      if (request.method !== 'GET' && request.method !== 'POST') {
         methodNotAllowed(response);
         return;
       }
 
       try {
+        const cookies = parseCookieHeader(request.headers.cookie);
         if (url.pathname === '/web/public/list') {
           const result = await contentService.listPublicContents({
             page: url.searchParams.get('page'),
@@ -360,15 +447,57 @@ export function createApp(config, dependencies = {}) {
         }
 
         if (url.pathname.startsWith('/web/public/content/')) {
+          if (url.pathname.endsWith('/password')) {
+            if (request.method !== 'POST') {
+              methodNotAllowed(response);
+              return;
+            }
+            const contentHash = url.pathname.slice('/web/public/content/'.length, -('/password'.length));
+            const form = await readForm(request);
+            const result = await contentService.verifyPublicPasswordByContentHash({
+              contentHash,
+              password: form.get('password'),
+              attemptKey: request.headers['x-forwarded-for'] || request.headers['x-real-ip'] || request.socket?.remoteAddress || 'unknown'
+            });
+            redirect(response, `/web/public/content/${encodeURIComponent(contentHash)}`, {
+              'set-cookie': result.setCookie
+            });
+            return;
+          }
+          if (request.method !== 'GET') {
+            methodNotAllowed(response);
+            return;
+          }
           const contentHash = url.pathname.slice('/web/public/content/'.length);
-          const result = await contentService.getPublicContentByHash(contentHash);
+          const result = await contentService.getPublicContentByHash(contentHash, { cookies });
           html(response, 200, renderPublicContentPage(result));
           return;
         }
 
         if (url.pathname.startsWith('/web/public/share/')) {
+          if (url.pathname.endsWith('/password')) {
+            if (request.method !== 'POST') {
+              methodNotAllowed(response);
+              return;
+            }
+            const shareHash = url.pathname.slice('/web/public/share/'.length, -('/password'.length));
+            const form = await readForm(request);
+            const result = await contentService.verifyPublicPasswordByShareHash({
+              shareHash,
+              password: form.get('password'),
+              attemptKey: request.headers['x-forwarded-for'] || request.headers['x-real-ip'] || request.socket?.remoteAddress || 'unknown'
+            });
+            redirect(response, `/web/public/share/${encodeURIComponent(shareHash)}`, {
+              'set-cookie': result.setCookie
+            });
+            return;
+          }
+          if (request.method !== 'GET') {
+            methodNotAllowed(response);
+            return;
+          }
           const shareHash = url.pathname.slice('/web/public/share/'.length);
-          const result = await contentService.getPublicContentByShareHash(shareHash);
+          const result = await contentService.getPublicContentByShareHash(shareHash, { cookies });
           html(response, 200, renderPublicContentPage(result));
           return;
         }
@@ -386,8 +515,39 @@ export function createApp(config, dependencies = {}) {
         }
 
         if (error.statusCode === 403) {
+          if ((error.code === 'public_password_invalid' || error.code === 'password_attempt_limited')
+            && (url.pathname.startsWith('/web/public/content/') || url.pathname.startsWith('/web/public/share/'))) {
+            const isShare = url.pathname.startsWith('/web/public/share/');
+            const hash = isShare
+              ? url.pathname.slice('/web/public/share/'.length, url.pathname.endsWith('/password') ? -('/password'.length) : undefined)
+              : url.pathname.slice('/web/public/content/'.length, url.pathname.endsWith('/password') ? -('/password'.length) : undefined);
+            const message = error.code === 'password_attempt_limited'
+              ? '尝试次数过多，请稍后再试。'
+              : '密码错误，请重试。';
+            html(response, 401, renderPublicPasswordPage({
+              access: isShare ? 'share_hash' : 'content_hash',
+              hash,
+              message
+            }));
+            return;
+          }
+
           const page = renderErrorPage({ title: '内容不可公开访问', message: error.message, statusCode: 403 });
           html(response, page.statusCode, page.html);
+          return;
+        }
+
+        if (error.statusCode === 401) {
+          const isShare = url.pathname.startsWith('/web/public/share/');
+          const hash = isShare
+            ? url.pathname.slice('/web/public/share/'.length)
+            : url.pathname.slice('/web/public/content/'.length);
+          html(response, 401, renderPublicPasswordPage({
+            access: isShare ? 'share_hash' : 'content_hash',
+            hash,
+            accessHint: error.details?.accessHint || null,
+            message: url.searchParams.get('error') || '请输入访问密码'
+          }));
           return;
         }
 
@@ -596,12 +756,18 @@ export function createApp(config, dependencies = {}) {
           const title = form.get('title');
           const body = form.get('body');
           const bodyFormat = form.get('bodyFormat');
+          const accessMode = form.get('accessMode');
+          const accessPassword = form.get('accessPassword');
+          const accessHint = form.get('accessHint');
           await contentService.updateContent({
             ownerUserId: authContext.user.id,
             contentId: actionContentId,
             title,
             ...(body !== null ? { body } : {}),
-            ...(bodyFormat !== null ? { bodyFormat } : {})
+            ...(bodyFormat !== null ? { bodyFormat } : {}),
+            ...(accessMode !== null ? { accessMode } : {}),
+            ...(accessPassword !== null ? { accessPassword } : {}),
+            ...(accessHint !== null ? { accessHint } : {})
           });
           redirect(response, buildRedirectUrl(`/web/detail/${encodeURIComponent(actionContentId)}`, {
             tone: 'success',
@@ -657,7 +823,10 @@ export function createApp(config, dependencies = {}) {
           const result = await contentService.createHtmlContent({
             ownerUserId: authContext.user.id,
             title: body.title,
-            htmlContent: body.htmlContent
+            htmlContent: body.htmlContent,
+            accessMode: body.accessMode,
+            accessPassword: body.accessPassword,
+            accessHint: body.accessHint
           });
 
           json(response, 201, result);
@@ -671,6 +840,9 @@ export function createApp(config, dependencies = {}) {
             body: body.body,
             bodyFormat: body.bodyFormat,
             htmlContent: body.htmlContent,
+            accessMode: body.accessMode,
+            accessPassword: body.accessPassword,
+            accessHint: body.accessHint,
             authorName: body.authorName,
             createdAt: body.createdAt
           });
@@ -685,7 +857,10 @@ export function createApp(config, dependencies = {}) {
             title: body.title,
             filename: body.filename,
             mimeType: body.mimeType,
-            contentBase64: body.contentBase64
+            contentBase64: body.contentBase64,
+            accessMode: body.accessMode,
+            accessPassword: body.accessPassword,
+            accessHint: body.accessHint
           });
 
           json(response, 201, result);
@@ -719,7 +894,10 @@ export function createApp(config, dependencies = {}) {
             title: body.title,
             ...(Object.prototype.hasOwnProperty.call(body, 'htmlContent') ? { htmlContent: body.htmlContent } : {}),
             ...(Object.prototype.hasOwnProperty.call(body, 'body') ? { body: body.body } : {}),
-            ...(Object.prototype.hasOwnProperty.call(body, 'bodyFormat') ? { bodyFormat: body.bodyFormat } : {})
+            ...(Object.prototype.hasOwnProperty.call(body, 'bodyFormat') ? { bodyFormat: body.bodyFormat } : {}),
+            ...(Object.prototype.hasOwnProperty.call(body, 'accessMode') ? { accessMode: body.accessMode } : {}),
+            ...(Object.prototype.hasOwnProperty.call(body, 'accessPassword') ? { accessPassword: body.accessPassword } : {}),
+            ...(Object.prototype.hasOwnProperty.call(body, 'accessHint') ? { accessHint: body.accessHint } : {})
           });
 
           json(response, 200, result);
