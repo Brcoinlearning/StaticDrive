@@ -694,6 +694,7 @@ function buildPublicContentSummary(config, record) {
     publicPageUrl: `/web/public/content/${encodeURIComponent(record.content_hash)}`,
     mimeType: record.mime_type,
     fileSize: record.file_size,
+    authorName: resolveAuthorName(record),
     createdAt: record.created,
     updatedAt: record.updated,
     bodyFormat: record.body_format || 'html',

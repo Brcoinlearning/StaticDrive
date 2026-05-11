@@ -788,28 +788,24 @@ function renderItemCard(item) {
   const summaryLine = item.summary
     ? `<p>${escapeHtml(item.summary)}</p>`
     : '<p>暂无正文摘要。</p>';
-  const authorLine = `作者：${escapeHtml(item.authorName || '未提供')}`;
-  const createdAtLine = `创建时间：${escapeHtml(item.createdAt || '未提供')}`;
-  const filenameLine = item.originalFilename
-    ? `<p>源文件：${escapeHtml(item.originalFilename)}</p>`
-    : '<p>富文本内容，无原始文件。</p>';
+  const authorLine = item.authorName ? `<span>作者：${escapeHtml(item.authorName)}</span>` : '';
+  const createdAtLine = item.createdAt ? `<span>创建于 ${escapeHtml(String(item.createdAt).slice(0, 10))}</span>` : '';
+  const fileMeta = item.type === 'file'
+    ? `<p>${item.originalFilename ? `源文件：${escapeHtml(item.originalFilename)} · ` : ''}${escapeHtml(formatFileSize(item.fileSize))}</p>`
+    : '';
 
   return `<article class="card">
     <div class="card-head">
       <div class="card-title">
-        <div class="badge-row"><span class="badge">${escapeHtml(item.type === 'rich_text' ? 'Rich Text' : 'File')}</span>${sharedBadge}</div>
+        <div class="badge-row">${sharedBadge}</div>
         <h2><a href="/web/detail/${encodeURIComponent(item.contentId)}">${escapeHtml(displayTitle)}</a></h2>
       </div>
     </div>
     ${summaryLine}
-    ${filenameLine}
+    ${fileMeta}
     ${localFileWarning}
     <div class="meta">
-      <span>${authorLine}</span>
-      <span>${createdAtLine}</span>
-      <span>内容 ID：${escapeHtml(item.contentId)}</span>
-      <span>MIME：${escapeHtml(item.mimeType || '-')}</span>
-      <span>大小：${escapeHtml(formatFileSize(item.fileSize))}</span>
+      ${authorLine}${createdAtLine}
     </div>
     <div class="action-row">
       <a class="btn secondary" href="/web/detail/${encodeURIComponent(item.contentId)}">查看详情</a>
@@ -826,18 +822,22 @@ function renderItemRow(item) {
   const summaryLine = item.summary
     ? `<p class="row-summary">${escapeHtml(item.summary)}</p>`
     : '';
-  const authorLine = item.authorName ? `作者：${escapeHtml(item.authorName)}` : '';
-  const createdAtLine = item.createdAt ? `创建：${escapeHtml(item.createdAt)}` : '';
+  const metaParts = [];
+  if (item.authorName) metaParts.push(`作者：${escapeHtml(item.authorName)}`);
+  if (item.createdAt) metaParts.push(`创建于 ${escapeHtml(String(item.createdAt).slice(0, 10))}`);
+  if (item.type === 'file') {
+    if (item.originalFilename) metaParts.push(escapeHtml(item.originalFilename));
+    metaParts.push(escapeHtml(formatFileSize(item.fileSize)));
+  }
+  const metaLine = metaParts.filter(Boolean).join(' · ');
 
   return `<article class="card list-row">
     <div class="list-row-body">
-      <div class="badge-row"><span class="badge">${escapeHtml(item.type === 'rich_text' ? 'Rich Text' : 'File')}</span>${sharedBadge}</div>
+      <div class="badge-row">${sharedBadge}</div>
       <h3><a href="/web/detail/${encodeURIComponent(item.contentId)}">${escapeHtml(displayTitle)}</a></h3>
       ${summaryLine}
       <div class="meta row-meta">
-        ${authorLine ? `<span>${authorLine}</span>` : ''}
-        ${createdAtLine ? `<span>${createdAtLine}</span>` : ''}
-        <span>大小：${escapeHtml(formatFileSize(item.fileSize))}</span>
+        ${metaLine ? `<span>${metaLine}</span>` : ''}
       </div>
     </div>
     <div class="list-row-action">
@@ -852,19 +852,22 @@ function renderPublicItemRow(item) {
   const summaryLine = item.summary
     ? `<p class="row-summary">${escapeHtml(item.summary)}</p>`
     : '';
-  const typeLabel = item.type === 'rich_text' ? '公开富文本' : '公开文件';
-  const createdAtLine = item.createdAt ? `创建：${escapeHtml(item.createdAt)}` : '';
-  const updatedAtLine = item.updatedAt ? `更新：${escapeHtml(item.updatedAt)}` : '';
+  const metaParts = [];
+  if (item.authorName) metaParts.push(`作者：${escapeHtml(item.authorName)}`);
+  if (item.createdAt) metaParts.push(`创建于 ${escapeHtml(String(item.createdAt).slice(0, 10))}`);
+  if (item.type === 'file') {
+    if (item.originalFilename) metaParts.push(escapeHtml(item.originalFilename));
+    metaParts.push(escapeHtml(formatFileSize(item.fileSize)));
+  }
+  const metaLine = metaParts.filter(Boolean).join(' · ');
 
   return `<article class="card list-row">
     <div class="list-row-body">
-      <div class="badge-row"><span class="badge">${escapeHtml(typeLabel)}</span></div>
+      <div class="badge-row"><span class="badge">${escapeHtml(item.type === 'rich_text' ? '公开富文本' : '公开文件')}</span></div>
       <h3><a href="${escapeHtml(item.publicPageUrl)}">${escapeHtml(displayTitle)}</a></h3>
       ${summaryLine}
       <div class="meta row-meta">
-        ${createdAtLine ? `<span>${createdAtLine}</span>` : ''}
-        ${updatedAtLine ? `<span>${updatedAtLine}</span>` : ''}
-        <span>大小：${escapeHtml(formatFileSize(item.fileSize))}</span>
+        ${metaLine ? `<span>${metaLine}</span>` : ''}
       </div>
     </div>
     <div class="list-row-action">
@@ -878,27 +881,23 @@ function renderPublicItemCard(item) {
   const summaryLine = item.summary
     ? `<p>${escapeHtml(item.summary)}</p>`
     : '<p>暂无正文摘要。</p>';
-  const typeLabel = item.type === 'rich_text' ? '公开富文本' : '公开文件';
-  const subLine = item.type === 'rich_text'
-    ? `<p>富文本内容，正文格式：${escapeHtml(item.bodyFormat || 'html')}</p>`
-    : (item.originalFilename ? `<p>源文件：${escapeHtml(item.originalFilename)}</p>` : '');
-  const createdAtLine = item.createdAt ? `创建时间：${escapeHtml(item.createdAt)}` : '';
-  const updatedAtLine = item.updatedAt ? `更新时间：${escapeHtml(item.updatedAt)}` : '';
+  const authorLine = item.authorName ? `<span>作者：${escapeHtml(item.authorName)}</span>` : '';
+  const createdAtLine = item.createdAt ? `<span>创建于 ${escapeHtml(String(item.createdAt).slice(0, 10))}</span>` : '';
+  const fileMeta = item.type === 'file'
+    ? `<p>${item.originalFilename ? `源文件：${escapeHtml(item.originalFilename)} · ` : ''}${escapeHtml(formatFileSize(item.fileSize))}</p>`
+    : '';
 
   return `<article class="card">
     <div class="card-head">
       <div class="card-title">
-        <div class="badge-row"><span class="badge">${escapeHtml(typeLabel)}</span></div>
+        <div class="badge-row"><span class="badge">${escapeHtml(item.type === 'rich_text' ? '公开富文本' : '公开文件')}</span></div>
         <h2><a href="${escapeHtml(item.publicPageUrl)}">${escapeHtml(displayTitle)}</a></h2>
       </div>
     </div>
     ${summaryLine}
-    ${subLine}
+    ${fileMeta}
     <div class="meta">
-      ${createdAtLine ? `<span>${createdAtLine}</span>` : ''}
-      ${updatedAtLine ? `<span>${updatedAtLine}</span>` : ''}
-      <span>MIME：${escapeHtml(item.mimeType || '-')}</span>
-      <span>大小：${escapeHtml(formatFileSize(item.fileSize))}</span>
+      ${authorLine}${createdAtLine}
     </div>
   </article>`;
 }
@@ -1014,6 +1013,10 @@ function buildLayoutToggleHref(currentHref, currentLayout) {
   return '?' + params.toString();
 }
 
+function buildLayoutPersistenceScript() {
+  return '<script>(function(){var s=location.search,m=s.match(/[?&]layout=(cards|rows)/);if(m){localStorage.setItem("lld",m[1]);return}var p=localStorage.getItem("lld");if(p==="rows"){location.replace(location.pathname+(s?s+"&":"?")+"layout=rows"+location.hash)}})()</script>';
+}
+
 export function renderOwnerListPage(payload) {
   const layout = payload.layout || 'cards';
   const sectionClass = layout === 'rows' ? 'cards list-rows' : 'cards';
@@ -1027,7 +1030,7 @@ export function renderOwnerListPage(payload) {
     heading: 'Owner 内容列表',
     description: '这里是 owner 侧的主入口。你可以浏览已写入内容、确认公开状态，并进入详情页继续执行分享、撤销分享、更新或删除。',
     mode: 'owner',
-    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly, layout, toggleLayoutHref: `?layout=${layout === 'rows' ? 'cards' : 'rows'}` })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
+    body: `${buildLayoutPersistenceScript()}${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly, layout, toggleLayoutHref: `?layout=${layout === 'rows' ? 'cards' : 'rows'}` })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
   });
 }
 
@@ -1046,7 +1049,7 @@ export function renderOwnerSearchPage(payload) {
     description: payload.query ? `当前展示与“${payload.query}”相关的 owner 内容。` : '未提供关键词，显示默认结果。',
     mode: 'owner',
     query: payload.query,
-    body: `${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, missingLocalFileOnly: payload.missingLocalFileOnly, backHref: '/web/list', layout, toggleLayoutHref: toggleHref })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, query: payload.query, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
+    body: `${buildLayoutPersistenceScript()}${renderFlash(payload.flash)}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, missingLocalFileOnly: payload.missingLocalFileOnly, backHref: '/web/list', layout, toggleLayoutHref: toggleHref })}${renderOwnerTopbarLinks()}${renderBatchPanel({ items: payload.items, query: payload.query, page: payload.page, missingLocalFileOnly: payload.missingLocalFileOnly })}${cards}`
   });
 }
 
@@ -1064,7 +1067,7 @@ export function renderPublicListPage(payload) {
     description: '公开访客可以在这里浏览已经发布的文件与富文本，并继续进入详情页或下载原始文件。',
     mode: 'public',
     eyebrow: 'Public Discovery',
-    body: `${renderToolbar({ totalItems: payload.totalItems, page: payload.page, backHref: '/web/public/list', backLabel: '刷新公开列表', layout, toggleLayoutHref: `?layout=${layout === 'rows' ? 'cards' : 'rows'}` })}${cards}`
+    body: `${buildLayoutPersistenceScript()}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, backHref: '/web/public/list', backLabel: '刷新公开列表', layout, toggleLayoutHref: `?layout=${layout === 'rows' ? 'cards' : 'rows'}` })}${cards}`
   });
 }
 
@@ -1084,7 +1087,7 @@ export function renderPublicSearchPage(payload) {
     mode: 'public',
     query: payload.query,
     eyebrow: 'Public Discovery',
-    body: `${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, backHref: '/web/public/list', backLabel: '返回公开列表', layout, toggleLayoutHref: toggleHref })}${cards}`
+    body: `${buildLayoutPersistenceScript()}${renderToolbar({ totalItems: payload.totalItems, page: payload.page, query: payload.query, backHref: '/web/public/list', backLabel: '返回公开列表', layout, toggleLayoutHref: toggleHref })}${cards}`
   });
 }
 
@@ -1144,4 +1147,37 @@ export function renderErrorPage({ title, message, statusCode = 500 }) {
       body: `<section class="error">${escapeHtml(message)}</section>`
     })
   };
+}
+
+export function renderWriteFormPage({ flash } = {}) {
+  return renderLayout({
+    title: '写入新内容',
+    heading: '写入新内容',
+    description: '模拟 Agent 传入字符串，直接以 Markdown 形式写入内容库。',
+    mode: 'owner',
+    body: `${renderFlash(flash)}<section class="detail-layout"><div class="detail-main"><section class="panel"><h3>字符串写入</h3><form method="post" action="/web/write" class="field-stack"><div class="field-stack"><label for="title"><strong>标题</strong></label><input id="title" type="text" name="title" placeholder="输入内容标题" required></div><div class="field-stack"><label for="body"><strong>正文（Markdown）</strong></label><textarea id="body" name="body" rows="12" placeholder="在此编写 Markdown 正文..." required></textarea></div><div class="action-row"><button type="submit">写入内容库</button><a class="btn secondary" href="/web/list">返回列表</a></div></form></section></div><aside class="detail-side"><section class="panel"><h3>说明</h3><p>本页面模拟了 Agent 通过 API 传入字符串主体的场景。</p><p>写入的内容将自动渲染 Markdown 为 HTML 并入库。</p><p>写入成功后会显示结果页，包含内容 ID 及查看链接。</p></section></aside></section>`
+  });
+}
+
+export function renderWriteResultPage({ result, error } = {}) {
+  if (error) {
+    return {
+      statusCode: 500,
+      html: renderLayout({
+        title: '写入失败',
+        heading: '写入失败',
+        description: '写入内容时发生错误。',
+        mode: 'owner',
+        body: `<section class="error">${escapeHtml(error.message || '写入内容时发生错误。')}</section><div class="action-row"><a class="btn secondary" href="/web/write">返回重试</a><a class="btn secondary" href="/web/list">返回列表</a></div>`
+      })
+    };
+  }
+
+  return renderLayout({
+    title: '写入成功',
+    heading: '写入成功',
+    description: '内容已成功进入内容库。',
+    mode: 'owner',
+    body: `<section class="detail-layout"><div class="detail-main"><section class="panel"><h3>创建结果</h3><div class="meta-grid"><div><strong>内容 ID</strong><span><code>${escapeHtml(result.contentId)}</code></span></div><div><strong>类型</strong><span>${escapeHtml(result.type)}</span></div><div><strong>内容哈希</strong><span><code>${escapeHtml(result.contentHash)}</code></span></div>${result.publicApiUrl ? `<div><strong>公开 API</strong><span><code>${escapeHtml(result.publicApiUrl)}</code></span></div>` : ''}</div></section></div><aside class="detail-side"><section class="panel"><h3>下一步</h3><div class="action-row"><a class="btn" href="/web/detail/${encodeURIComponent(result.contentId)}">查看详情页</a><a class="btn secondary" href="/web/write">继续写入</a><a class="btn secondary" href="/web/list">返回列表</a></div></section></aside></section>`
+  });
 }

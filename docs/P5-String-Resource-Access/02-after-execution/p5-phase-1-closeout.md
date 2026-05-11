@@ -62,7 +62,7 @@ bash -n scripts/p5_demo_common.sh \
 
 实际结果：
 
-1. `tests/content.test.js`：`120 passed, 0 failed`（含 22 个 Markdown fixture 回归测试 + 2 个 API 集成断言）
+1. `tests/content.test.js`：`124 passed, 0 failed`（含 22 个 Markdown fixture 回归测试 + 2 个 API 集成断言 + 4 个 Web 写入表单测试）
 2. P5 demo 脚本语法检查通过
 
 ### 5.1 Markdown Fixture 回归体系
@@ -110,6 +110,29 @@ bash -n scripts/p5_demo_common.sh \
 
 `tests/fixtures/markdown/demo-showcase.md` 作为 P5 演示脚本的默认正文来源，整合了 22 个 fixture 的所有语法点。其中图片使用 `data:image/png;base64,...` 内嵌真实照片，无网络依赖。
 
+#### 5.1.3 Card/Row 列表信息优化
+
+对 owner 和 public 列表页的卡片视图与横条视图做了信息简化与持久化：
+
+1. **分类型信息展示**：`file` 类型显示源文件名 + 文件大小，`rich_text` 类型不显示无意义的 `0B` 和 MIME 信息。
+2. **时间精度**：创建时间从 `2026-05-01 16:00:00.000Z` 截断为 `2026-05-01`。
+3. **移除冗余字段**：卡片和横条中不再显示 Content ID、文件类型徽章、"富文本内容无原始文件" 等低价值信息。
+4. **作者保留**：owner 和 public 视图均保留作者名展示。
+5. **布局持久化**：通过 `localStorage` + 自动重定向脚本实现卡片/横条切换在页面刷新和导航后保持。
+
+#### 5.1.4 Public 页面作者展示修复
+
+Public list/search 页面的作者名此前始终不显示。根因为 `listPublicContents()` 在 PocketBase 查询中缺少 `&expand=owner_user_id` 参数，导致关联用户数据未被返回。修复后 public 页面作者正常显示。
+
+#### 5.2 Web 写入表单（模拟 Agent 字符串写入）
+
+新增 `GET/POST /web/write` 页面，用于直观模拟 Agent 通过 API 传入字符串主体的场景：
+
+- **表单字段**：标题 + 正文（Markdown），必填校验
+- **身份处理**：复用现有 owner-page 认证流程（session cookie 或 API Key header），自动以当前登录用户身份写入
+- **结果页**：展示 contentId、contentHash、type、公开 API 路径，并提供详情页/继续写入/返回列表快捷链接
+- 共 4 个测试用例覆盖正常写入、空字段校验、服务异常等路径
+
 ## 6. 本轮覆盖的 Contract 项
 
 本轮已覆盖：
@@ -138,6 +161,7 @@ bash -n scripts/p5_demo_common.sh \
 
 默认演示顺序：
 
+0. 通过写入表单页面（`/web/write`）模拟 Agent 传入字符串，填写标题和 Markdown 正文，观察写入成功后的结果页。
 1. 写入一条 Markdown 内容对象，观察脚本输出里已经声明样例覆盖的能力范围。
 2. 查询内容对象，确认 `body / bodyFormat / renderedBodyHtml / htmlContent`，并验证原始 Markdown 与最终 HTML 同时存在。
 3. 打开 owner 详情页，重点检查 task list、裸链接、嵌套列表、代码块、表格、图片与公式渲染，同时确认更新表单仍保留原始 `body + bodyFormat`。

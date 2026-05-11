@@ -4,7 +4,7 @@ import { createContentService } from './content/service.js';
 import { getErrorDetails, getErrorDiagnostic, serializeErrorForLog } from './errors.js';
 import { badRequest, binary, errorResponse, forbidden, gone, json, methodNotAllowed, notFound, readJson } from './http/json.js';
 import { PocketBaseClient } from './pocketbase/client.js';
-import { renderCredentialPage, renderErrorPage, renderLoginPage, renderOwnerDetailPage, renderOwnerListPage, renderOwnerSearchPage, renderPublicContentPage, renderPublicListPage, renderPublicPasswordPage, renderPublicSearchPage } from './web/page-renderer.js';
+import { renderCredentialPage, renderErrorPage, renderLoginPage, renderOwnerDetailPage, renderOwnerListPage, renderOwnerSearchPage, renderPublicContentPage, renderPublicListPage, renderPublicPasswordPage, renderPublicSearchPage, renderWriteFormPage, renderWriteResultPage } from './web/page-renderer.js';
 
 function routeGroup(pathname) {
   if (pathname === '/api/health') return 'health';
@@ -13,6 +13,7 @@ function routeGroup(pathname) {
   if (pathname === '/web/credential') return 'owner-page';
   if (pathname === '/web/list') return 'owner-page';
   if (pathname === '/web/search') return 'owner-page';
+  if (pathname === '/web/write') return 'owner-page';
   if (pathname.startsWith('/web/detail/')) return 'owner-page';
   if (pathname.startsWith('/web/action/')) return 'owner-page-action';
   if (pathname === '/web/public/list') return 'public-page';
@@ -592,12 +593,54 @@ export function createApp(config, dependencies = {}) {
     }
 
     if (group === 'owner-page') {
-      if (request.method !== 'GET') {
+      if (request.method !== 'GET' && request.method !== 'POST') {
         methodNotAllowed(response);
         return;
       }
 
       try {
+        if (request.method === 'POST' && url.pathname === '/web/write') {
+          const form = await readForm(request);
+          const title = (form.get('title') || '').trim();
+          const body = (form.get('body') || '').trim();
+
+          if (!title || !body) {
+            const page = renderWriteFormPage({
+              flash: { title: '请填写必填字段', message: '标题和正文不能为空。', tone: 'error' }
+            });
+            html(response, 400, page);
+            return;
+          }
+
+          try {
+            const result = await contentService.createHtmlContent({
+              ownerUserId: authContext.user.id,
+              title,
+              body,
+              bodyFormat: 'markdown'
+            });
+
+            html(response, 201, renderWriteResultPage({ result }));
+            return;
+          } catch (err) {
+            const page = renderWriteResultPage({ error: err });
+            html(response, 500, page.html);
+            return;
+          }
+        }
+
+        if (request.method !== 'GET') {
+          methodNotAllowed(response);
+          return;
+        }
+
+        if (url.pathname === '/web/write') {
+          html(response, 200, renderWriteFormPage({
+            flash: buildFlashFromParams(url.searchParams)
+          }));
+          return;
+        }
+
         if (url.pathname === '/web/credential') {
           html(response, 200, renderCredentialPage({
             user: authContext.user,

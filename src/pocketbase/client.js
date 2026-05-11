@@ -139,7 +139,7 @@ export class PocketBaseClient {
     }
 
     const filter = encodeURIComponent(filterParts.join(' && '));
-    const url = `${this.baseUrl}/api/collections/contents/records?page=${page}&perPage=${perPage}&sort=-created&filter=${filter}`;
+    const url = `${this.baseUrl}/api/collections/contents/records?page=${page}&perPage=${perPage}&sort=-created&filter=${filter}&expand=owner_user_id`;
     const response = await this.fetchImpl(url, {
       headers: {
         'content-type': 'application/json',
