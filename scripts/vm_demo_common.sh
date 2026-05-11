@@ -27,6 +27,7 @@ load_vm_demo_env() {
   set +a
 
   export DEMO_SERVICE_BASE_URL="${DEMO_SERVICE_BASE_URL:-${PUBLIC_BASE_URL:-}}"
+  export DEMO_OWNER_WEB_BASE_URL="${DEMO_OWNER_WEB_BASE_URL:-$DEMO_SERVICE_BASE_URL/web}"
   export DEMO_PUBLIC_WEB_BASE_URL="${DEMO_PUBLIC_WEB_BASE_URL:-$DEMO_SERVICE_BASE_URL/web/public}"
   export DEMO_API_HEADER="${DEMO_API_HEADER:-${API_KEY_HEADER:-x-shutong49-api-key}}"
   export DEMO_API_KEY="${DEMO_API_KEY:-}"
@@ -61,6 +62,7 @@ require_vm_http_entrypoints() {
   curl -fsS "$DEMO_SERVICE_BASE_URL/api/health" >/dev/null
   curl -fsS "$DEMO_SERVICE_BASE_URL/web/auth/login" >/dev/null
   curl -fsS "$DEMO_SERVICE_BASE_URL/web/public/list" >/dev/null
+  curl -fsS "$DEMO_SERVICE_BASE_URL/web/write" >/dev/null
 }
 
 print_vm_demo_preamble() {
