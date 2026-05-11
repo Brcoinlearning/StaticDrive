@@ -178,14 +178,22 @@ Phase 2 的稳定化证据见：
 
 写接口：
 
+- `POST /api/write/content`
 - `POST /api/write/html`
 - `POST /api/write/file`
 - `POST /api/write/share`
 - `POST /api/write/share/revoke`
 - `POST /api/write/delete`
 
+其中 `POST /api/write/content`、`POST /api/write/html`、`POST /api/write/file`、`POST /api/write/update` 支持以下访问控制字段：
+
+- `accessMode`: `public | password`（默认 `public`）
+- `accessPassword`: 明文输入，服务端只保存 hash
+- `accessHint`: 可选提示
+
 查询接口：
 
+- `GET /api/query/content/:contentId`
 - `GET /api/query/list`
 - `GET /api/query/search`
 - `GET /api/query/detail/:contentId`
@@ -194,6 +202,13 @@ public 接口：
 
 - `GET /api/public/content/:contentHash`
 - `GET /api/public/share/:shareHash`
+- `POST /api/public/content/:contentHash/password`
+- `POST /api/public/share/:shareHash/password`
+
+说明：
+
+- 当内容访问模式为 `password` 且尚未验证时，`GET /api/public/*` 会返回 `401 public_password_required`。
+- 通过 `POST /api/public/*/password` 校验成功后，会建立短期访问态（HttpOnly cookie），在有效期内可访问正文。
 
 网页层：
 
@@ -208,6 +223,13 @@ public 接口：
 - `GET /web/public/search`
 - `GET /web/public/content/:contentHash`
 - `GET /web/public/share/:shareHash`
+- `POST /web/public/content/:contentHash/password`
+- `POST /web/public/share/:shareHash/password`
+
+说明：
+
+- 公开页访问命中 `password` 模式时会展示密码输入页。
+- 密码错误会在密码输入框下方提示红色错误文本，并可继续重试。
 
 ## 手工演示建议
 
@@ -217,6 +239,29 @@ public 接口：
 4. 打开 `/web/public/list`、`/web/public/search?q=关键词`，再进入公开详情页。
 5. 验证 `/api/public/content/:contentHash` 或 `/api/public/share/:shareHash` 返回真实文件下载而不是 JSON。
 6. 执行 `/api/write/share/revoke` 和 `/api/write/delete`，观察 public 状态变化。
+
+## P5 第一阶段演示脚本
+
+如果你要演示本轮新增的 `content` 语义写入、查询、列表增强与 `rich_text` 公开详情复用，可以按下面顺序运行：
+
+```bash
+./scripts/p5_demo_step1_write_content.sh
+./scripts/p5_demo_step2_query_and_share.sh
+./scripts/p5_demo_step3_print_access_info.sh
+./scripts/p5_demo_step4_cleanup_content.sh
+```
+
+可选环境变量：
+
+- `P5_DEMO_API_KEY`
+- `P5_DEMO_API_HEADER`
+- `P5_DEMO_SERVICE_BASE_URL`
+- `P5_DEMO_OWNER_WEB_BASE_URL`
+- `P5_DEMO_PUBLIC_WEB_BASE_URL`
+- `P5_DEMO_TITLE`
+- `P5_DEMO_BODY`
+
+这些脚本会在 `.demo-state/p5_content_demo.env` 中保存中间状态，便于分步演示和最终清理。
 
 ## Docker Desktop 本机部署
 

@@ -1,0 +1,6 @@
+- [ ] Buy groceries
+- [x] Finish the report
+- [ ] Call the plumber
+- [x] Water the plants
+- [ ] Schedule dentist appointment
+- [x] Pay electricity bill

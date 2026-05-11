@@ -118,7 +118,7 @@ export class PocketBaseClient {
     }
 
     const filter = encodeURIComponent(filterParts.join(' && '));
-    const url = `${this.baseUrl}/api/collections/contents/records?page=${page}&perPage=${perPage}&sort=-created&filter=${filter}`;
+    const url = `${this.baseUrl}/api/collections/contents/records?page=${page}&perPage=${perPage}&sort=-created&expand=owner_user_id&filter=${filter}`;
     const response = await this.fetchImpl(url, {
       headers: {
         'content-type': 'application/json',
@@ -152,7 +152,7 @@ export class PocketBaseClient {
 
   async getContentById(contentId) {
     const adminToken = await this.getAdminToken();
-    const response = await this.fetchImpl(`${this.baseUrl}/api/collections/contents/records/${contentId}`, {
+    const response = await this.fetchImpl(`${this.baseUrl}/api/collections/contents/records/${contentId}?expand=owner_user_id`, {
       headers: {
         'content-type': 'application/json',
         authorization: adminToken

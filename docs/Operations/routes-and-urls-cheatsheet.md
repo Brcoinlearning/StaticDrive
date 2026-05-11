@@ -72,6 +72,22 @@
 
 - `GET /api/public/content/<contentHash>`
 - `GET /api/public/share/<shareHash>`
+- `POST /api/public/content/<contentHash>/password`
+- `POST /api/public/share/<shareHash>/password`
+
+说明：
+
+- 当内容为 `password` 访问模式且尚未验证时，`GET /api/public/*` 会返回 `401 public_password_required`。
+- 成功调用 `POST /api/public/*/password` 后会建立短期访问态（cookie）。
+
+### 3.4 public 网页密码入口
+
+- `POST /web/public/content/<contentHash>/password`
+- `POST /web/public/share/<shareHash>/password`
+
+说明：
+
+- 公开页密码错误时，页面会在密码输入框下方显示红色错误提示，并可继续重试。
 
 ## 4. 当前高频用法
 
