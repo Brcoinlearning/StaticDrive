@@ -8,16 +8,11 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 load_p5_demo_state
 require_http_ok "$P5_DEMO_SERVICE_BASE_URL/api/health" "business shell"
 
-QUERY_RESPONSE="$(curl -sS "$P5_DEMO_SERVICE_BASE_URL/api/query/content/$P5_CONTENT_ID" \
-  -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY")"
+QUERY_RESPONSE="$(curl -sS "$P5_DEMO_SERVICE_BASE_URL/api/query/content/$P5_CONTENT_ID"   -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY")"
 
-NOT_FOUND_STATUS="$(curl -sS -o /tmp/p5_demo_query_missing.json -w '%{http_code}' "$P5_DEMO_SERVICE_BASE_URL/api/query/content/not-exists-id" \
-  -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY")"
+NOT_FOUND_STATUS="$(curl -sS -o /tmp/p5_demo_query_missing.json -w '%{http_code}' "$P5_DEMO_SERVICE_BASE_URL/api/query/content/not-exists-id"   -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY")"
 
-SHARE_RESPONSE="$(curl -sS -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/share" \
-  -H 'content-type: application/json' \
-  -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY" \
-  -d "{\"contentId\":\"$P5_CONTENT_ID\"}")"
+SHARE_RESPONSE="$(curl -sS -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/share"   -H 'content-type: application/json'   -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY"   -d '{"contentId":"'"$P5_CONTENT_ID"'"}')"
 
 PUBLIC_RESPONSE="$(curl -sS "$P5_DEMO_SERVICE_BASE_URL/api/public/content/$P5_CONTENT_HASH")"
 
@@ -36,16 +31,12 @@ fi
 while IFS=$'\t' read -r key value; do
   printf -v "$key" '%s' "$value"
 done < <(
-  node -e "const share=JSON.parse(process.argv[1]); const pairs = [
-    ['P5_SHARE_HASH', share.shareHash],
-    ['P5_SHARE_URL', share.shareUrl]
-  ]; for (const [k, v] of pairs) process.stdout.write(k + '\t' + String(v ?? '') + '\n');" \
-  "$SHARE_RESPONSE"
+  printf '%s' "$SHARE_RESPONSE" | node -e "let input=''; process.stdin.on('data', (chunk) => input += chunk); process.stdin.on('end', () => { const share = JSON.parse(input); const pairs = [ ['P5_SHARE_HASH', share.shareHash], ['P5_SHARE_URL', share.shareUrl] ]; for (const [k, v] of pairs) process.stdout.write(k + '\t' + String(v ?? '') + '\n'); });"
 )
 
 save_p5_demo_state
 
-QUERY_BODY_FORMAT="$(node -e "const payload=JSON.parse(process.argv[1]); process.stdout.write(String(payload.bodyFormat || ''));" "$QUERY_RESPONSE")"
+QUERY_BODY_FORMAT="$(printf '%s' "$QUERY_RESPONSE" | node -e "let input=''; process.stdin.on('data', (chunk) => input += chunk); process.stdin.on('end', () => { const payload = JSON.parse(input); process.stdout.write(String(payload.bodyFormat || '')); });")"
 echo "[p5-demo-step2] content query: ok"
 echo "[p5-demo-step2] query bodyFormat: $QUERY_BODY_FORMAT"
 echo "[p5-demo-step2] missing query rejected with 404"
