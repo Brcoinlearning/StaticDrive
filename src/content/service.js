@@ -1588,6 +1588,17 @@ export function createContentService({ config, pocketbaseClient, fsImpl = fs, ma
       throw error;
     }
 
+    if (!record.is_shared) {
+      const error = new Error('Content is not shared.');
+      error.statusCode = 403;
+      error.code = 'content_not_shared';
+      throw error;
+    }
+
+    if (!isPublicAccessGranted({ access: 'share_hash', record, cookies })) {
+      denyProtectedAccess(record);
+    }
+
     if (record.type === 'rich_text') {
       return buildPublicHtmlPayload(config, record, 'share_hash');
     }

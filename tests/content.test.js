@@ -4043,6 +4043,35 @@ test('password-protected content rejects direct access before verification', asy
   assert.equal(response.body.error, 'public_password_required');
 });
 
+test('password-protected share rejects direct access before verification', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-public-share-protected'), {
+    pocketbaseClient: {
+      async findShareLinkByHash() {
+        return {
+          id: 'share_pw_1',
+          content_id: 'content_pw_2',
+          share_hash: 'protectedsharehash1234protecteds',
+          is_revoked: false
+        };
+      },
+      async getContentById() {
+        return {
+          id: 'content_pw_2', owner_user_id: 'user_123', type: 'rich_text', title: 'Protected Share Content',
+          original_filename: '', content_hash: 'protectedsharecontenthash1234pr', storage_path: '', mime_type: 'text/html',
+          file_size: 0, html_content: '<p>secret share</p>', body_source: '<p>secret share</p>', body_format: 'html',
+          is_shared: true, access_mode: 'password', access_password_hash: 'scrypt:00112233445566778899aabbccddeeff:0011', access_hint: 'abc', created: '2026-04-18', updated: '2026-04-18'
+        };
+      },
+      async healthCheck() { return { code: 200 }; }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({ method: 'GET', url: '/api/public/share/protectedsharehash1234protecteds', headers: { host: '127.0.0.1:8787' } }), response);
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.body.error, 'public_password_required');
+});
+
 test('web password submit shows retry page when password is wrong', async () => {
   const app = createApp(createConfig('/tmp/shutong49-web-public-password-retry'), {
     contentService: {
@@ -4100,6 +4129,42 @@ test('password verification success grants short-lived cookie and allows access'
   const token = decodeURIComponent(verified.setCookie.split(';')[0].split('=')[1]);
   const payload = await service.getPublicContentByHash('protectedokhash1234protectedok12', {
     cookies: { shutong49_public_access_content_hash: token }
+  });
+  assert.equal(payload.type, 'rich_text');
+});
+
+test('share password verification success grants short-lived cookie and allows access', async () => {
+  const service = createContentService({
+    config: createConfig('/tmp/shutong49-service-access-verify-share-ok'),
+    pocketbaseClient: {
+      async findShareLinkByHash() {
+        return {
+          id: 'share_pw_ok_1',
+          content_id: 'content_pw_ok_share_1',
+          share_hash: 'protectedshareokhash1234protect',
+          is_revoked: false
+        };
+      },
+      async getContentById() {
+        return {
+          id: 'content_pw_ok_share_1', owner_user_id: 'user_123', type: 'rich_text', title: 'Protected Share OK',
+          original_filename: '', content_hash: 'protectedsharecontentokhash1234', storage_path: '', mime_type: 'text/html',
+          file_size: 0, html_content: '<p>ok share</p>', body_source: '<p>ok share</p>', body_format: 'html',
+          is_shared: true, access_mode: 'password',
+          access_password_hash: 'scrypt:11223344556677889900aabbccddeeff:' + crypto.scryptSync('pw123', Buffer.from('11223344556677889900aabbccddeeff', 'hex'), 64).toString('hex'),
+          access_hint: 'share hint', created: '2026-04-18', updated: '2026-04-18'
+        };
+      }
+    }
+  });
+
+  const verified = await service.verifyPublicPasswordByShareHash({ shareHash: 'protectedshareokhash1234protect', password: 'pw123', attemptKey: '127.0.0.1' });
+  assert.equal(verified.verified, true);
+  assert.match(verified.setCookie, /shutong49_public_access_share_hash=/);
+
+  const token = decodeURIComponent(verified.setCookie.split(';')[0].split('=')[1]);
+  const payload = await service.getPublicContentByShareHash('protectedshareokhash1234protect', {
+    cookies: { shutong49_public_access_share_hash: token }
   });
   assert.equal(payload.type, 'rich_text');
 });
