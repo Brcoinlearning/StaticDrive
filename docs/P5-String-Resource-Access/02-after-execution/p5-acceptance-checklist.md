@@ -54,6 +54,61 @@ curl -sS "$BASE_URL/web/auth/login" >/dev/null
 curl -sS "$BASE_URL/web/public/list" >/dev/null
 ```
 
+## 2.1 直接可复制命令
+
+如果你现在只是想照着跑，不想先看长说明，直接按下面顺序执行。
+
+### 2.1.1 当前这台 VM 的会话变量
+
+```bash
+cd /opt/static-content-service
+export DEMO_API_HEADER='x-shutong49-api-key'
+export DEMO_API_KEY='t1_verify_api_key_0001'
+export BASE_URL='http://192.168.2.9'
+```
+
+### 2.1.2 三个主脚本
+
+```bash
+bash ./scripts/vm_demo_step0_precheck.sh
+bash ./scripts/vm_demo_step1_write_and_share.sh
+bash ./scripts/vm_demo_step2_print_and_verify.sh
+```
+
+### 2.1.3 验收结束后清理演示数据
+
+```bash
+bash ./scripts/vm_demo_step3_cleanup.sh
+```
+
+### 2.1.4 如果你想直接看本次生成的 ID 和 URL
+
+```bash
+cat .demo-state/p5_content_demo.env
+
+. ./.demo-state/p5_content_demo.env
+echo "$P5_CONTENT_ID"
+echo "$P5_CONTENT_HASH"
+echo "$P5_SHARE_HASH"
+echo "$P5_SHARE_URL"
+
+# 如果尚未创建内容，你可以直接访问 /web/write 页面手动写入
+```
+
+### 2.1.5 如果你想直接打开这次要验的几个页面
+
+```bash
+. ./.demo-state/p5_content_demo.env
+echo "$BASE_URL/web/auth/login"
+echo "$BASE_URL/web/list"
+echo "$BASE_URL/web/write"
+echo "$BASE_URL/web/detail/$P5_CONTENT_ID"
+echo "$BASE_URL/web/detail/$P5_CONTENT_ID   # owner 侧浏览器写入/更新表单入口"
+echo "$BASE_URL/web/public/list"
+echo "$BASE_URL/web/public/content/$P5_CONTENT_HASH"
+echo "$P5_SHARE_URL"
+```
+
 ## 3. 先跑脚本链路
 
 ### 3.1 预检

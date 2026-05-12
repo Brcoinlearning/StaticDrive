@@ -4340,3 +4340,205 @@ test('fixture/integration html write uses body as rendered html directly', async
   assert.equal(response.body.contentId, 'int_html_1');
   assert.equal(response.body.type, 'rich_text');
 });
+
+test('web/write GET renders the write form page', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-write-form'), {
+    pocketbaseClient: {
+      async findUserByApiKey(apiKey) {
+        return { id: 'user_123', display_name: 'Writer', api_key: apiKey };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const loginResponse = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/login',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'x-shutong49-api-key=valid-key'
+  }), loginResponse);
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/write',
+    headers: {
+      host: '127.0.0.1:8787',
+      cookie: loginResponse.headers['set-cookie']
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /写入新内容/);
+  assert.match(response.rawBody, /字符串写入/);
+  assert.match(response.rawBody, /Markdown/);
+  assert.match(response.rawBody, /form method="post" action="\/web\/write/);
+});
+
+test('web/write POST creates content and renders result page', async () => {
+  let capturedTitle = '';
+  let capturedBody = '';
+  let capturedOwnerUserId = '';
+
+  const app = createApp(createConfig('/tmp/shutong49-web-write-post'), {
+    pocketbaseClient: {
+      async findUserByApiKey(apiKey) {
+        return { id: 'user_123', display_name: 'Writer', api_key: apiKey };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    },
+    contentService: {
+      async createHtmlContent({ ownerUserId, title, body, bodyFormat }) {
+        capturedOwnerUserId = ownerUserId;
+        capturedTitle = title;
+        capturedBody = body;
+        return {
+          contentId: 'write_new_001',
+          contentHash: 'abc123',
+          type: 'rich_text',
+          accessUrl: '/web/public/content/abc123',
+          publicApiUrl: '/api/public/content/abc123'
+        };
+      }
+    }
+  });
+
+  const loginResponse = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/login',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'x-shutong49-api-key=valid-key'
+  }), loginResponse);
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/write',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded',
+      cookie: loginResponse.headers['set-cookie']
+    },
+    body: 'title=%E6%A8%A1%E6%8B%9F%E6%B5%8B%E8%AF%95%E5%86%99%E5%85%A5&body=%23+%E6%B5%8B%E8%AF%95%E6%A0%87%E9%A2%98%0A%0A%E8%BF%99%E6%98%AF%E4%B8%80%E6%AE%B5%E6%AD%A3%E6%96%87%E3%80%82'
+  }), response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(capturedOwnerUserId, 'user_123');
+  assert.equal(capturedTitle, '模拟测试写入');
+  assert.match(capturedBody, /测试标题/);
+  assert.match(response.rawBody, /写入成功/);
+  assert.match(response.rawBody, /write_new_001/);
+  assert.match(response.rawBody, /查看详情页/);
+  assert.match(response.rawBody, /继续写入/);
+});
+
+test('web/write POST rejects empty title or body', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-write-empty'), {
+    pocketbaseClient: {
+      async findUserByApiKey(apiKey) {
+        return { id: 'user_123', display_name: 'Writer', api_key: apiKey };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const loginResponse = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/login',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'x-shutong49-api-key=valid-key'
+  }), loginResponse);
+
+  const emptyTitle = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/write',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded',
+      cookie: loginResponse.headers['set-cookie']
+    },
+    body: 'title=&body=%E6%9C%89%E6%AD%A3%E6%96%87'
+  }), emptyTitle);
+
+  assert.equal(emptyTitle.statusCode, 400);
+  assert.match(emptyTitle.rawBody, /标题和正文不能为空/);
+
+  const emptyBody = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/write',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded',
+      cookie: loginResponse.headers['set-cookie']
+    },
+    body: 'title=%E6%9C%89%E6%A0%87%E9%A2%98&body='
+  }), emptyBody);
+
+  assert.equal(emptyBody.statusCode, 400);
+  assert.match(emptyBody.rawBody, /标题和正文不能为空/);
+});
+
+test('web/write POST renders error page on content service failure', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-write-error'), {
+    pocketbaseClient: {
+      async findUserByApiKey(apiKey) {
+        return { id: 'user_123', display_name: 'Writer', api_key: apiKey };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    },
+    contentService: {
+      async createHtmlContent() {
+        throw new Error('数据库写入失败');
+      }
+    }
+  });
+
+  const loginResponse = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/auth/login',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    body: 'x-shutong49-api-key=valid-key'
+  }), loginResponse);
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'POST',
+    url: '/web/write',
+    headers: {
+      host: '127.0.0.1:8787',
+      'content-type': 'application/x-www-form-urlencoded',
+      cookie: loginResponse.headers['set-cookie']
+    },
+    body: 'title=%E6%B5%8B%E8%AF%95&body=%E6%AD%A3%E6%96%87'
+  }), response);
+
+  assert.equal(response.statusCode, 500);
+  assert.match(response.rawBody, /写入失败/);
+  assert.match(response.rawBody, /数据库写入失败/);
+});

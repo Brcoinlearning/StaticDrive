@@ -1145,3 +1145,36 @@ export function renderErrorPage({ title, message, statusCode = 500 }) {
     })
   };
 }
+
+export function renderWriteFormPage({ flash } = {}) {
+  return renderLayout({
+    title: '写入新内容',
+    heading: '写入新内容',
+    description: '模拟 Agent 传入字符串，直接以 Markdown 形式写入内容库。',
+    mode: 'owner',
+    body: `${renderFlash(flash)}<section class="detail-layout"><div class="detail-main"><section class="panel"><h3>字符串写入</h3><form method="post" action="/web/write" class="field-stack"><div class="field-stack"><label for="title"><strong>标题</strong></label><input id="title" type="text" name="title" placeholder="输入内容标题" required></div><div class="field-stack"><label for="body"><strong>正文（Markdown）</strong></label><textarea id="body" name="body" rows="12" placeholder="在此编写 Markdown 正文..." required></textarea></div><div class="action-row"><button type="submit">写入内容库</button><a class="btn secondary" href="/web/list">返回列表</a></div></form></section></div><aside class="detail-side"><section class="panel"><h3>说明</h3><p>本页面模拟了 Agent 通过 API 传入字符串主体的场景。</p><p>写入的内容将自动渲染 Markdown 为 HTML 并入库。</p><p>写入成功后会显示结果页，包含内容 ID 及查看链接。</p></section></aside></section>`
+  });
+}
+
+export function renderWriteResultPage({ result, error } = {}) {
+  if (error) {
+    return {
+      statusCode: 500,
+      html: renderLayout({
+        title: '写入失败',
+        heading: '写入失败',
+        description: '写入内容时发生错误。',
+        mode: 'owner',
+        body: `<section class="error">${escapeHtml(error.message || '写入内容时发生错误。')}</section><div class="action-row"><a class="btn secondary" href="/web/write">返回重试</a><a class="btn secondary" href="/web/list">返回列表</a></div>`
+      })
+    };
+  }
+
+  return renderLayout({
+    title: '写入成功',
+    heading: '写入成功',
+    description: '内容已成功进入内容库。',
+    mode: 'owner',
+    body: `<section class="detail-layout"><div class="detail-main"><section class="panel"><h3>创建结果</h3><div class="meta-grid"><div><strong>内容 ID</strong><span><code>${escapeHtml(result.contentId)}</code></span></div><div><strong>类型</strong><span>${escapeHtml(result.type)}</span></div><div><strong>内容哈希</strong><span><code>${escapeHtml(result.contentHash)}</code></span></div>${result.publicApiUrl ? `<div><strong>公开 API</strong><span><code>${escapeHtml(result.publicApiUrl)}</code></span></div>` : ''}</div></section></div><aside class="detail-side"><section class="panel"><h3>下一步</h3><div class="action-row"><a class="btn" href="/web/detail/${encodeURIComponent(result.contentId)}">查看详情页</a><a class="btn secondary" href="/web/write">继续写入</a><a class="btn secondary" href="/web/list">返回列表</a></div></section></aside></section>`
+  });
+}
