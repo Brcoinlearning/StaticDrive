@@ -1,3 +1,3 @@
 VM acceptance sample file.
-This file is used by scripts/vm_demo_step1_write_and_share.sh to verify file upload, public access, share access, and download through the VM HTTP entrypoint.
-
+This file is a legacy sample asset from the earlier file-upload VM demo flow.
+The current vm_demo_step1/vm_demo_step2 mainline no longer depends on this file and now validates the markdown string showcase chain instead.

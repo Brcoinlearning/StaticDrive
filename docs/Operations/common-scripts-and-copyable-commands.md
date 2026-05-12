@@ -133,6 +133,8 @@ bash ./scripts/vm_demo_step2_print_and_verify.sh
 bash ./scripts/vm_demo_step3_cleanup.sh
 ```
 
+说明：当前 VM 验收链路默认覆盖新的 `markdown` 字符串内容写入、查询和 public/share 展示，不再依赖旧文件演示样例。
+
 ### 3.2 VM 外部上传与删除
 
 ```bash

@@ -197,6 +197,13 @@ bash ./scripts/vm_demo_step1_write_and_share.sh
 bash ./scripts/vm_demo_step2_print_and_verify.sh
 ```
 
+当前这套 VM 验收脚本验证的是现版本主线的字符串内容展示链路，而不再只是早期 MVP 的文件上传演示，重点包括：
+
+1. `bodyFormat=markdown` 的字符串内容写入。
+2. `query/content` 返回原始 `body` 与 `renderedBodyHtml`。
+3. public content 与 share 两条链路都能展示新的 Markdown 样例内容。
+4. VM 上跑的是新的展示样例，而不是旧文件样例。
+
 如需清理演示数据：
 
 ```bash

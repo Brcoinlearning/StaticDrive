@@ -30,7 +30,6 @@ load_vm_demo_env() {
   export DEMO_PUBLIC_WEB_BASE_URL="${DEMO_PUBLIC_WEB_BASE_URL:-$DEMO_SERVICE_BASE_URL/web/public}"
   export DEMO_API_HEADER="${DEMO_API_HEADER:-${API_KEY_HEADER:-x-shutong49-api-key}}"
   export DEMO_API_KEY="${DEMO_API_KEY:-}"
-  export DEMO_FILE_PATH="${DEMO_FILE_PATH:-${DEMO_PDF_PATH:-$ROOT_DIR/docs/P4-Deployment/02-after-execution/assets/vm-acceptance-sample.txt}}"
 }
 
 require_vm_demo_prerequisites() {
@@ -69,7 +68,7 @@ print_vm_demo_preamble() {
   echo "[vm-demo] public base: $DEMO_PUBLIC_WEB_BASE_URL"
   echo "[vm-demo] api key header: $DEMO_API_HEADER"
   echo "[vm-demo] api key value: $DEMO_API_KEY"
-  echo "[vm-demo] file sample: $DEMO_FILE_PATH"
+  echo "[vm-demo] demo content: markdown string sample via p5_demo scripts"
 }
 
 require_command curl
