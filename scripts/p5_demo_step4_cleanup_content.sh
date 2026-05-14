@@ -8,10 +8,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 load_p5_demo_state
 require_http_ok "$P5_DEMO_SERVICE_BASE_URL/api/health" "business shell"
 
-curl -sS -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/delete" \
-  -H 'content-type: application/json' \
-  -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY" \
-  -d "{\"contentId\":\"$P5_CONTENT_ID\"}" >/dev/null
+delete_demo_content_if_present "${P5_CONTENT_ID:-}"
+delete_demo_content_if_present "${P5_EMPTY_TITLE_CONTENT_ID:-}"
 
 rm -f "$P5_DEMO_STATE_FILE"
 

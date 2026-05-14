@@ -7,7 +7,15 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 require_http_ok "$P5_DEMO_SERVICE_BASE_URL/api/health" "business shell"
 
-CONTENT_REQUEST_BODY="$(node -e "process.stdout.write(JSON.stringify({ title: process.argv[1], body: process.argv[2], bodyFormat: process.argv[3], authorName: 'Demo Author', createdAt: '2026-05-02T10:00:00.000Z' }));" "$P5_DEMO_TITLE" "$P5_DEMO_BODY" "$P5_DEMO_BODY_FORMAT")"
+if [ -f "$P5_DEMO_STATE_FILE" ]; then
+  load_p5_demo_state
+  delete_demo_content_if_present "${P5_CONTENT_ID:-}"
+  delete_demo_content_if_present "${P5_EMPTY_TITLE_CONTENT_ID:-}"
+  rm -f "$P5_DEMO_STATE_FILE"
+fi
+
+printf '%s' "$P5_DEMO_BODY" > /tmp/p5_demo_body.txt
+CONTENT_REQUEST_BODY="$(node -e "const fs=require('fs');process.stdout.write(JSON.stringify({ title: process.argv[1], body: fs.readFileSync('/tmp/p5_demo_body.txt','utf8'), bodyFormat: process.argv[2], authorName: 'Demo Author', createdAt: '2026-05-02T10:00:00.000Z' }));" "$P5_DEMO_TITLE" "$P5_DEMO_BODY_FORMAT")"
 
 CONTENT_RESPONSE="$(curl -sS -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/content" \
   -H 'content-type: application/json' \
@@ -44,6 +52,8 @@ done < <(
   ]; for (const [k, v] of pairs) process.stdout.write(k + '\t' + String(v ?? '') + '\n');" \
   "$CONTENT_RESPONSE"
 )
+
+P5_EMPTY_TITLE_CONTENT_ID="$(printf '%s' "$EMPTY_TITLE_RESPONSE" | node -e "let input=''; process.stdin.on('data', (chunk) => input += chunk); process.stdin.on('end', () => { const payload = JSON.parse(input); process.stdout.write(String(payload.contentId || '')); });")"
 
 save_p5_demo_state
 

@@ -33,11 +33,37 @@ P5_DEMO_TITLE=$(shell_quote "${P5_DEMO_TITLE}")
 P5_DEMO_BODY_FORMAT=$(shell_quote "${P5_DEMO_BODY_FORMAT}")
 P5_DEMO_BODY=$(shell_quote "${P5_DEMO_BODY}")
 P5_CONTENT_ID=$(shell_quote "${P5_CONTENT_ID:-}")
+P5_EMPTY_TITLE_CONTENT_ID=$(shell_quote "${P5_EMPTY_TITLE_CONTENT_ID:-}")
 P5_CONTENT_HASH=$(shell_quote "${P5_CONTENT_HASH:-}")
 P5_ACCESS_URL=$(shell_quote "${P5_ACCESS_URL:-}")
 P5_SHARE_HASH=$(shell_quote "${P5_SHARE_HASH:-}")
 P5_SHARE_URL=$(shell_quote "${P5_SHARE_URL:-}")
 EOFSTATE
+}
+
+delete_demo_content_if_present() {
+  local content_id="${1:-}"
+
+  if [ -z "$content_id" ]; then
+    return 0
+  fi
+
+  local status
+  status="$(curl -sS -o /tmp/p5_demo_delete_content.json -w '%{http_code}' -X POST "$P5_DEMO_SERVICE_BASE_URL/api/write/delete" \
+    -H 'content-type: application/json' \
+    -H "$P5_DEMO_API_HEADER: $P5_DEMO_API_KEY" \
+    -d "{\"contentId\":\"$content_id\"}")"
+
+  case "$status" in
+    200|404)
+      return 0
+      ;;
+    *)
+      echo "[p5-demo-cleanup] delete content failed for $content_id with status $status" >&2
+      cat /tmp/p5_demo_delete_content.json >&2
+      return 1
+      ;;
+  esac
 }
 
 load_p5_demo_state() {
