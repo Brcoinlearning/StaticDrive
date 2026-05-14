@@ -8,6 +8,28 @@
 
 如果你是第一次从零部署 VM，请优先结合 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
 
+## 0. Agent 优先接管原则
+
+如果当前 VM 实际上是本机 `Multipass` 实例，不要默认让用户手工 SSH 到 VM 再逐条执行命令。优先顺序应是：
+
+1. 先在本机执行 `multipass list`，确认目标 VM 是否存在。
+2. 如果存在，优先使用 `multipass exec <instance> -- ...` 直接在 VM 内执行命令。
+3. 只有当 `multipass` 不可用，或者目标机器不是本机 `Multipass` 实例时，才退回到 SSH。
+
+当前真实案例：
+
+- 实例名：`vm-accept`
+- VM IP：`192.168.2.9`
+
+因此在这台开发机上，后续 agent 看到 `192.168.2.9` 时，应优先尝试：
+
+```bash
+multipass list
+multipass exec vm-accept -- bash -lc 'pwd && hostname && whoami'
+```
+
+而不是先让用户自己登录 VM。
+
 ## 1. VM 运行结构
 
 当前推荐的 VM 运行方式是：
@@ -38,11 +60,23 @@ sudo systemctl status static-content-compose --no-pager
 sudo systemctl status nginx --no-pager
 ```
 
+如果由 agent 从宿主机直接接管 VM，可改为：
+
+```bash
+multipass exec vm-accept -- bash -lc 'cd /opt/static-content-service && sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml ps'
+```
+
 ### 3.2 启动 Compose
 
 ```bash
 cd /opt/static-content-service
 sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d
+```
+
+agent 直连版本：
+
+```bash
+multipass exec vm-accept -- bash -lc 'cd /opt/static-content-service && sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d'
 ```
 
 ### 3.3 停止 Compose
@@ -61,10 +95,29 @@ sudo docker compose --project-directory . -p static-content-service --env-file .
 
 这个命令适用于“只改了业务壳代码或业务壳配置”的场景。
 
+agent 直连版本：
+
+```bash
+multipass exec vm-accept -- bash -lc 'cd /opt/static-content-service && sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d app'
+```
+
 ### 3.5 重启整套 Compose
 
 ```bash
 sudo systemctl restart static-content-compose
+```
+
+注意：不是每台 VM 都一定已经安装并启用了 `static-content-compose.service`。如果该 unit 不存在，不要卡在 `systemctl restart`，直接退回到 Compose：
+
+```bash
+cd /opt/static-content-service
+sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d pocketbase app
+```
+
+agent 直连版本：
+
+```bash
+multipass exec vm-accept -- bash -lc 'cd /opt/static-content-service && sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d pocketbase app'
 ```
 
 ### 3.6 重启 Nginx
@@ -106,6 +159,8 @@ sudo journalctl -u static-content-compose -n 100 --no-pager
 - 改了 Nginx 配置：只 reload/restart `nginx`
 - 改了 Compose 模板或公共环境：重启整套 Compose
 - 改了 PocketBase 相关底座配置：单独评估是否要处理 `pocketbase` 容器
+
+补充：如果问题已经明确发生在 VM 的 `PocketBase data.db` 或 `_collections.schema`，而 agent 又已经能通过 `multipass exec` 接管 VM，则应优先由 agent 直接完成检查、备份、修复和复测，不要把中间命令逐条转交给用户执行。
 
 ## 7. 与历史文档关系
 

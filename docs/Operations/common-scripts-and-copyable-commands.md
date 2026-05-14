@@ -145,6 +145,37 @@ bash ./scripts/external_delete_content.sh '<contentId>'
 
 ## 4. VM 最常复制的命令
 
+### 4.0 agent 直连 VM 的首选入口
+
+如果宿主机安装了 `multipass`，并且目标 VM 就是本机实例，不要优先让用户自己 SSH 到 VM。先由 agent 或维护者在宿主机上执行：
+
+```bash
+multipass list
+multipass exec vm-accept -- bash -lc 'pwd && hostname && whoami'
+```
+
+当前项目的真实实例名就是 `vm-accept`，对应 IP 为 `192.168.2.9`。
+
+常用直连动作：
+
+```bash
+multipass exec vm-accept -- bash -lc 'cd /opt/static-content-service && sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml ps'
+multipass exec vm-accept -- bash -lc 'cd /opt/static-content-service && sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d app'
+multipass exec vm-accept -- bash -lc 'cd /opt/static-content-service && sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml logs -f app'
+```
+
+如果需要把宿主机文件直接送进 VM，可用：
+
+```bash
+multipass transfer /absolute/path/on/host vm-accept:/tmp/target-file
+```
+
+这个路径适用于：
+
+- agent 直接接管 VM 排障
+- 需要快速投递临时脚本到 VM
+- SSH key 不通，但 `multipass` 可用
+
 ### 4.1 查看 Compose 与 systemd 状态
 
 ```bash
@@ -167,6 +198,13 @@ sudo docker compose --project-directory . -p static-content-service --env-file .
 
 ```bash
 sudo systemctl restart static-content-compose
+```
+
+如果 `static-content-compose.service` 不存在，直接退回 Compose：
+
+```bash
+cd /opt/static-content-service
+sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d pocketbase app
 ```
 
 ### 4.4 检查和重启 Nginx
@@ -205,7 +243,8 @@ curl http://<vm-ip>/api/health
 如果你只是日常维护，建议按下面顺序使用：
 
 1. 先看当前环境是“本机”还是“VM”。
-2. 直接从本文复制对应命令。
-3. 如果命令背后的原因不清楚，再回到运行手册看解释。
+2. 如果是本机 `Multipass` VM，优先走 `multipass exec`，不要先把命令转交给用户手工执行。
+3. 再从本文复制对应命令。
+4. 如果命令背后的原因不清楚，再回到运行手册看解释。
 
 这样可以减少每次都去翻长文档找命令。
