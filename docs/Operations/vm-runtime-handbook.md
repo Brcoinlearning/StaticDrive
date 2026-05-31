@@ -6,7 +6,7 @@
 2. 常用启动、停止、重启命令是什么。
 3. 常用检查地址是什么。
 
-如果你是第一次从零部署 VM，请优先结合 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
+如果你是第一次从零部署 VM，请优先结合 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/archive/phases/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
 
 ## 0. Agent 优先接管原则
 
@@ -166,7 +166,7 @@ sudo journalctl -u static-content-compose -n 100 --no-pager
 
 如果你需要更多真实 VM 落地上下文，可继续看：
 
-- [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)
-- [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)
+- [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/archive/phases/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)
+- [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/archive/phases/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)
 
 但日常维护时，优先以本文档作为“常用命令入口”。

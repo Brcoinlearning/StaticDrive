@@ -15,15 +15,10 @@
 
 完整入口索引见 [docs/README.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/README.md)。
 
-
-- `docs/Operations/`：通用运行与运维文档，覆盖本机运行、VM 运行、代码变更后的同步与重启规则
-
-- `docs/P1-MVP/01-before-execution/`：P1 开始前的正式产物，如需求、技术选型、架构、任务拆解、测试契约
-- `docs/P1-MVP/02-after-execution/`：P1 执行后的联调、验收、演示与结果文档
-- `docs/P2-Stabilization/01-before-execution/`：P2 稳定化阶段开始前的范围、架构、任务与路线图文档
-- `docs/P2-Stabilization/02-after-execution/`：P2 执行后的验证、诊断、冷启动与收口文档
-- `docs/P3-Owner-Frontend/01-before-execution/`：P3 owner 产品化前端的准备文档
-- `docs/_reference/`：补充说明与参考材料
+- `docs/Operations/`：当前运行、同步、重启、排障、发布文档。
+- `docs/core-business-flow.md`：当前业务链路和源码入口。
+- `docs/P5-String-Resource-Access/02-after-execution/`：当前内容对象边界和 P5 验收清单。
+- `docs/archive/`：历史阶段材料、早期规划、开源调研和长篇展示稿。
 
 ## 代码结构
 
@@ -83,7 +78,7 @@ bash ./scripts/preflight.sh pocketbase
 
 1. 创建管理员账号
 2. 确认迁移已初始化 `users_api`、`contents`、`share_links`
-3. 在 `users_api` 中插入一条 API Key 样例记录，参考 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/02-after-execution/mvp-sample-data.md)
+3. 在 `users_api` 中插入一条 API Key 样例记录。历史样例可参考 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/archive/phases/P1-MVP/02-after-execution/mvp-sample-data.md)。
 
 ### 3. 启动业务壳服务与网页层
 
@@ -123,7 +118,7 @@ npm start
 node --test
 ```
 
-当前 Phase 3 收口后的验证结果：`70/70` 通过。
+当前主测试集覆盖内容写入、Markdown 渲染、访问控制、owner/public 页面与健康检查等核心链路。
 
 浏览器级关键回归：
 
@@ -166,13 +161,7 @@ bash ./scripts/verify_coldstart_dry_run.sh
 9. 分享下载文件
 10. 删除内容与撤销分享
 
-对应的自动化证据见 [mvp-integration-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/02-after-execution/mvp-integration-verification.md)。
-
-Phase 2 的稳定化证据见：
-
-- [p2-t2-startup-preflight-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P2-Stabilization/02-after-execution/p2-t2-startup-preflight-verification.md)
-- [p2-t5-runtime-diagnostics-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P2-Stabilization/02-after-execution/p2-t5-runtime-diagnostics-verification.md)
-- [p2-t6-cold-start-reproducibility-verification.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P2-Stabilization/02-after-execution/p2-t6-cold-start-reproducibility-verification.md)
+历史 MVP 与稳定化验收证据已归档到 `docs/archive/phases/`，日常开发以当前自动化测试和 `docs/Operations/` 中的验收命令为准。
 
 ## 常用接口
 
@@ -233,7 +222,7 @@ public 接口：
 
 ## 手工演示建议
 
-1. 先按 [mvp-sample-data.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P1-MVP/02-after-execution/mvp-sample-data.md) 写入一条 HTML 内容和一条文件内容。
+1. 先通过 `/api/write/content` 写入一条 HTML 或 Markdown 内容，再通过 `/api/write/file` 写入一条文件内容。
 2. 创建分享链接。
 3. 打开 `/web/list`、`/web/search`、`/web/detail/:contentId`。
 4. 打开 `/web/public/list`、`/web/public/search?q=关键词`，再进入公开详情页。
@@ -293,19 +282,7 @@ APP_ENV_FILE=.env.docker.example docker compose --project-directory . --env-file
 
 说明：如果使用 `deploy/vm-compose/docker-compose.prod.yml` 这类位于子目录的 compose 文件，务必显式添加 `--project-directory .`，避免 `./.env`、`./workspace`、`./pocketbase/data` 等相对路径被错误解析到子目录。
 
-更完整的说明见 [vm-and-docker-deployment-guide.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/01-before-execution/vm-and-docker-deployment-guide.md)。
-
-首次启动检查单见 [docker-first-start-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-first-start-checklist.md)。
-
-虚拟机上的 `Nginx + HTTPS + systemd/compose` 模板见 [vm-compose-production-template.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-compose-production-template.md)。
-
-Docker 六项核心能力验收见 [docker-six-capability-acceptance.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/docker-six-capability-acceptance.md)。
-
-Docker 部署收口记录见 [p4-docker-acceptance-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/p4-docker-acceptance-closeout.md)。
-
-虚拟机上线最短执行清单见 [vm-go-live-short-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-go-live-short-checklist.md)。
-
-如果你需要继续维护已经落地的 `ubu2404` 机器，而不是从零部署新 VM，直接看 [vm-ubu2404-ip-http-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P4-Deployment/02-after-execution/vm-ubu2404-ip-http-closeout.md)。这份文档记录了当前真实运行状态、运维命令、配置修改方式，以及后续从 IP/HTTP 升级到域名/HTTPS 的顺序。
+日常 Docker/VM 维护优先看 [docs/Operations](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations)。历史部署方案和旧 VM 验收记录已归档到 `docs/archive/phases/P4-Deployment/`。
 
 ## MiniPC 部署建议
 

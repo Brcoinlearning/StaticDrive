@@ -176,7 +176,75 @@ multipass transfer /absolute/path/on/host vm-accept:/tmp/target-file
 - 需要快速投递临时脚本到 VM
 - SSH key 不通，但 `multipass` 可用
 
-### 4.1 查看 Compose 与 systemd 状态
+### 4.1 VM 刚启动后恢复到可验收状态
+
+用途：VM 处于 `Stopped`、宿主机重启过，或者你刚把 `vm-accept` 拉起来后，先跑这一组，把环境恢复到能执行 `vm_demo_*` 脚本的状态。
+
+宿主机上先启动 VM，然后进入 VM shell：
+
+```bash
+multipass list
+multipass start vm-accept
+multipass shell vm-accept
+```
+
+下面命令在 VM shell 里执行。先进入项目目录，并把本轮验收要用的变量一次性导入当前 shell：
+
+```bash
+cd /opt/static-content-service
+
+export DEMO_API_HEADER='x-shutong49-api-key'
+export DEMO_API_KEY='t1_verify_api_key_0001'
+export BASE_URL='http://192.168.2.9'
+export DEMO_SERVICE_BASE_URL="$BASE_URL"
+export PUBLIC_BASE_URL="$BASE_URL"
+```
+
+说明：如果你是直连 `app` 容器端口，把 `BASE_URL` 改成 `http://192.168.2.9:8787`；如果走 Nginx，对当前 VM 通常用 `http://192.168.2.9`。
+
+然后确认代码、环境文件和容器状态：
+
+```bash
+git status
+test -f .env && grep -E "^(PUBLIC_BASE_URL|PB_BASE_URL|PB_ADMIN_EMAIL|API_KEY_HEADER)=" .env || true
+sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml ps
+```
+
+如果容器没起来，或 `app` / `pocketbase` 不是 healthy，直接拉起整套 Compose：
+
+```bash
+sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d pocketbase app
+sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml ps
+```
+
+确认本机容器入口、VM IP 和对外入口：
+
+```bash
+curl -sS http://127.0.0.1:8787/api/health
+hostname -I
+curl -fsS "$DEMO_SERVICE_BASE_URL/api/health"
+curl -fsS "$DEMO_SERVICE_BASE_URL/web/auth/login" >/dev/null
+curl -fsS "$DEMO_SERVICE_BASE_URL/web/public/list" >/dev/null
+```
+
+最后跑 VM 验收脚本。`DEMO_API_KEY` 必须是真实 `users_api` 里的 key：
+
+```bash
+bash ./scripts/vm_demo_step0_precheck.sh
+bash ./scripts/vm_demo_step1_write_and_share.sh
+bash ./scripts/vm_demo_step2_print_and_verify.sh
+bash ./scripts/vm_demo_step3_cleanup.sh
+```
+
+如果由 agent 从宿主机非交互接管 VM，可以把同一组变量放进一个 `multipass exec`：
+
+```bash
+multipass exec vm-accept -- bash -lc 'cd /opt/static-content-service && export DEMO_API_HEADER="x-shutong49-api-key" DEMO_API_KEY="t1_verify_api_key_0001" BASE_URL="http://192.168.2.9" DEMO_SERVICE_BASE_URL="$BASE_URL" PUBLIC_BASE_URL="$BASE_URL" && bash ./scripts/vm_demo_step0_precheck.sh'
+```
+
+如果 `static-content-compose.service` 存在，也可以用 `sudo systemctl restart static-content-compose`；如果不存在，不要卡住，以上 Compose 命令就是兜底路径。
+
+### 4.2 查看 Compose 与 systemd 状态
 
 ```bash
 cd /opt/static-content-service
@@ -185,7 +253,7 @@ sudo systemctl status static-content-compose --no-pager
 sudo systemctl status nginx --no-pager
 ```
 
-### 4.2 只重启 app 容器
+### 4.3 只重启 app 容器
 
 用途：只改了业务壳代码或业务壳配置时，优先使用这个命令。
 
@@ -194,7 +262,7 @@ cd /opt/static-content-service
 sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d app
 ```
 
-### 4.3 重启整套 Compose
+### 4.4 重启整套 Compose
 
 ```bash
 sudo systemctl restart static-content-compose
@@ -207,14 +275,14 @@ cd /opt/static-content-service
 sudo docker compose --project-directory . -p static-content-service --env-file .env -f deploy/vm-compose/docker-compose.prod.yml up -d pocketbase app
 ```
 
-### 4.4 检查和重启 Nginx
+### 4.5 检查和重启 Nginx
 
 ```bash
 sudo nginx -t
 sudo systemctl restart nginx
 ```
 
-### 4.5 查看日志
+### 4.6 查看日志
 
 ```bash
 cd /opt/static-content-service
@@ -223,7 +291,7 @@ sudo docker compose --project-directory . -p static-content-service --env-file .
 sudo journalctl -u static-content-compose -n 100 --no-pager
 ```
 
-### 4.6 对外入口检查
+### 4.7 对外入口检查
 
 把 `<vm-ip>` 换成真实 IP 或域名：
 
