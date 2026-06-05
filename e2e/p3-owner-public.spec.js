@@ -21,6 +21,16 @@ test('owner can login, inspect content, and manage share state', async ({ page }
   const pdfLink = page.getByRole('link', { name: demoState.pdfTitle });
   await expect(pdfLink).toBeVisible();
 
+  const firstBatchCheckbox = page.locator('.batch-select input[name="contentIds"]').first();
+  await expect(firstBatchCheckbox).not.toBeVisible();
+  await page.getByRole('button', { name: '批量管理' }).click();
+  await expect(firstBatchCheckbox).toBeVisible();
+  await expect(page.getByRole('button', { name: '批量分享' })).toBeDisabled();
+  await firstBatchCheckbox.check();
+  await expect(page.getByRole('button', { name: '批量分享' })).toBeEnabled();
+  await page.getByRole('button', { name: '批量管理' }).click();
+  await expect(firstBatchCheckbox).not.toBeVisible();
+
   await pdfLink.click();
   await expect(page).toHaveURL(new RegExp(`/web/detail/${demoState.PDF_CONTENT_ID}(?:\\?.*)?$`));
   await expect(page.getByText('单内容操作中心')).toBeVisible();

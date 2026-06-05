@@ -14,6 +14,8 @@
 
 - [core-business-flow.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/core-business-flow.md)：核心业务链路和源码入口。
 - [core-business-flow-for-non-technical-readers.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/core-business-flow-for-non-technical-readers.md)：白话版业务链路。
+- [business-shell-frontend-requirements.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/business-shell-frontend-requirements.md)：业务壳要求前端提供的页面、按钮、表单、状态和交互契约。
+- [frontend-coverage-audit.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/frontend-coverage-audit.md)：按前端需求文档反查当前实现覆盖、风险和下一轮优先级。
 - [p5-phase-1-closeout.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P5-String-Resource-Access/02-after-execution/p5-phase-1-closeout.md)：当前 `bodyFormat + Markdown` 内容对象边界。
 - [p5-acceptance-checklist.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/P5-String-Resource-Access/02-after-execution/p5-acceptance-checklist.md)：P5 VM 验收清单。
 

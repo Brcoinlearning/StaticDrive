@@ -2062,6 +2062,8 @@ test('web/list renders owner content list page with action-oriented layout', asy
   assert.equal(response.statusCode, 200);
   assert.match(response.headers['content-type'], /text\/html/);
   assert.match(response.rawBody, /Owner 内容列表/);
+  assert.match(response.rawBody, /href="#main-content"/);
+  assert.match(response.rawBody, /<main id="main-content" class="page" tabindex="-1">/);
   assert.match(response.rawBody, /网页层内容/);
   assert.match(response.rawBody, /body/);
   assert.match(response.rawBody, /Alice/);
@@ -2262,12 +2264,62 @@ test('web/list exposes missing local file filter and batch cleanup action', asyn
 
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /name="missingLocalFileOnly"/);
-  assert.match(response.rawBody, /仅看缺失本地文件/);
+  assert.match(response.rawBody, /查看全部/);
+  assert.match(response.rawBody, /batch-mode-toggle/);
+  assert.match(response.rawBody, /aria-controls="batch-action-dock"/);
+  assert.match(response.rawBody, /aria-expanded="false"/);
+  assert.match(response.rawBody, /id="batch-action-dock"/);
+  assert.match(response.rawBody, /role="region"/);
+  assert.match(response.rawBody, /aria-live="polite"/);
+  assert.match(response.rawBody, /批量管理/);
   assert.match(response.rawBody, /data-batch-toggle="all"/);
   assert.match(response.rawBody, /全选当前页/);
   assert.match(response.rawBody, /value="cleanup_missing_file_records"/);
-  assert.match(response.rawBody, /清理缺失文件记录/);
+  assert.match(response.rawBody, /清理缺失/);
   assert.match(response.rawBody, /type="hidden" name="missingLocalFileOnly" value="1"/);
+  assert.match(response.rawBody, /href="\?missingLocalFileOnly=1&amp;layout=rows"/);
+});
+
+test('web/list keeps owner toolbar tools when list is empty', async () => {
+  const app = createApp(createConfig('/tmp/shutong49-web-empty-list-toolbar'), {
+    contentService: {
+      async listContents() {
+        return {
+          page: 1,
+          perPage: 20,
+          totalItems: 0,
+          totalPages: 0,
+          missingLocalFileOnly: false,
+          items: []
+        };
+      }
+    },
+    pocketbaseClient: {
+      async findUserByApiKey() {
+        return { id: 'user_123', display_name: 'Verifier', api_key: 'valid-key' };
+      },
+      async healthCheck() {
+        return { code: 200 };
+      }
+    }
+  });
+
+  const response = createResponseCapture();
+  await app(await createRequest({
+    method: 'GET',
+    url: '/web/list',
+    headers: {
+      host: '127.0.0.1:8787',
+      'x-shutong49-api-key': 'valid-key'
+    }
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.rawBody, /筛选/);
+  assert.match(response.rawBody, /批量管理/);
+  assert.match(response.rawBody, /batch-mode-toggle" aria-pressed="false" aria-expanded="false" aria-controls="batch-action-dock" disabled/);
+  assert.match(response.rawBody, /横条视图/);
+  assert.doesNotMatch(response.rawBody, /返回全部内容/);
 });
 
 test('web public list renders shared content discovery page', async () => {
@@ -2402,7 +2454,7 @@ test('web/detail renders rich text in sandboxed iframe and owner action panel', 
   }), response);
 
   assert.equal(response.statusCode, 200);
-  assert.match(response.rawBody, /<iframe class="preview" sandbox=""/);
+  assert.match(response.rawBody, /<iframe class="preview" title="内容预览" sandbox=""/);
   assert.match(response.rawBody, /srcdoc="&lt;!doctype html&gt;/);
   assert.match(response.rawBody, /HTML 预览|最终展示预览/);
   assert.match(response.rawBody, /Owner 操作/);
@@ -3826,6 +3878,8 @@ test('web auth login page renders API key form', async () => {
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /进入 Owner 控制台/);
   assert.match(response.rawBody, /API Key 登录/);
+  assert.match(response.rawBody, /input id="apiKey" type="text"[^>]*required/);
+  assert.match(response.rawBody, /autocomplete="current-password"/);
 });
 
 test('web auth login reads API key from form body and sets owner session cookie', async () => {
@@ -3921,7 +3975,7 @@ test('owner page accepts session cookie without API key header', async () => {
 
   assert.equal(response.statusCode, 200);
   assert.match(response.rawBody, /Owner 内容列表/);
-  assert.match(response.rawBody, /凭据与会话/);
+  assert.doesNotMatch(response.rawBody, /凭据与会话/);
 });
 
 test('credential page renders current owner identity from session', async () => {
