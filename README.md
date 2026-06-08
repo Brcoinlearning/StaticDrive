@@ -307,6 +307,12 @@ APP_ENV_FILE=.env.docker.example docker compose --project-directory . --env-file
 
 1Panel 反向代理只需要指向 `http://127.0.0.1:8787`。PocketBase 的 `8090` 默认只绑定宿主机本机，不建议公网暴露。
 
+如果无法访问 miniPC 终端、只能通过 1Panel 页面部署，则使用镜像仓库模式：
+
+- [docker-compose.registry.yml](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docker-compose.registry.yml)
+- [.env.registry.example](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.env.registry.example)
+- [acr-registry-deployment.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/acr-registry-deployment.md)
+
 ## 当前已知取舍
 
 - owner 网页层当前已支持基于 API Key 登录后签发 HttpOnly session cookie 的浏览器会话；Open API 仍继续使用请求头鉴权

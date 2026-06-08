@@ -1,0 +1,40 @@
+name: static-content-service
+
+services:
+  pocketbase:
+    image: ${STATIC_CONTENT_POCKETBASE_IMAGE:-crpi-egl8fqea65tii5cz.cn-beijing.personal.cr.aliyuncs.com/static-drive/static-content-service-pocketbase:2026.06.08}
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./pocketbase/data:/app/pocketbase/data
+      - ./pocketbase/public:/app/pocketbase/public
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  app:
+    image: ${STATIC_CONTENT_APP_IMAGE:-crpi-egl8fqea65tii5cz.cn-beijing.personal.cr.aliyuncs.com/static-drive/static-content-service-app:2026.06.08}
+    restart: unless-stopped
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./workspace:/app/workspace
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then((r)=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s

@@ -7,6 +7,7 @@
 - [local-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/local-runtime-handbook.md)：本机启动、停止、重启、健康检查。
 - [vm-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/vm-runtime-handbook.md)：VM 运行状态、Multipass 接管、Compose 操作。
 - [1panel-minipc-deployment.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/1panel-minipc-deployment.md)：miniPC + 1Panel 部署、反代、备份和升级。
+- [acr-registry-deployment.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/acr-registry-deployment.md)：无 miniPC 终端权限时，通过阿里云 ACR 镜像仓库 + 1Panel 编排部署。
 - [code-change-sync-and-restart.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/code-change-sync-and-restart.md)：改代码后本机和 VM 分别要同步/重启什么。
 - [common-scripts-and-copyable-commands.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/common-scripts-and-copyable-commands.md)：常用脚本和可复制命令。
 - [troubleshooting-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/troubleshooting-handbook.md)：常见问题排查顺序。
