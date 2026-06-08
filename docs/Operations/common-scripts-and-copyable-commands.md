@@ -9,6 +9,7 @@
 
 - [local-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/local-runtime-handbook.md)
 - [vm-runtime-handbook.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/vm-runtime-handbook.md)
+- [1panel-minipc-deployment.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/1panel-minipc-deployment.md)
 - [code-change-sync-and-restart.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/code-change-sync-and-restart.md)
 
 ## 1. 本机最常用脚本
@@ -141,6 +142,41 @@ bash ./scripts/vm_demo_step3_cleanup.sh
 cd /opt/static-content-service
 bash ./scripts/external_upload_file.sh '/absolute/path/to/your-file.pdf' '自定义标题'
 bash ./scripts/external_delete_content.sh '<contentId>'
+```
+
+## 3.5 1Panel / miniPC 最常复制的命令
+
+### 3.5.1 首次准备环境文件
+
+```bash
+cd /opt/static-content-service
+cp .env.1panel.example .env
+```
+
+然后修改 `.env` 中的 `PB_ADMIN_EMAIL`、`PB_ADMIN_PASSWORD` 和 `PUBLIC_BASE_URL`。
+
+### 3.5.2 启动或重建
+
+```bash
+cd /opt/static-content-service
+docker compose -p static-content-service -f docker-compose.1panel.yml up -d --build
+docker compose -p static-content-service -f docker-compose.1panel.yml ps
+```
+
+### 3.5.3 健康检查
+
+```bash
+curl http://127.0.0.1:8090/api/health
+curl http://127.0.0.1:8787/api/health
+curl https://你的域名/api/health
+```
+
+### 3.5.4 只重启业务壳
+
+```bash
+cd /opt/static-content-service
+docker compose -p static-content-service -f docker-compose.1panel.yml up -d --build app
+docker compose -p static-content-service -f docker-compose.1panel.yml logs -f app
 ```
 
 ## 4. VM 最常复制的命令

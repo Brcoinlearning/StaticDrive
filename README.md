@@ -299,6 +299,14 @@ APP_ENV_FILE=.env.docker.example docker compose --project-directory . --env-file
 - 先启动 PocketBase，再启动业务壳服务
 - 升级或迁移前先备份 PocketBase 数据目录和业务壳工作目录
 
+如果 miniPC 使用 1Panel，优先使用：
+
+- [docker-compose.1panel.yml](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docker-compose.1panel.yml)
+- [.env.1panel.example](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/.env.1panel.example)
+- [1panel-minipc-deployment.md](/Users/mr.hu/Desktop/开发项目/静态网页服务-文件管理/docs/Operations/1panel-minipc-deployment.md)
+
+1Panel 反向代理只需要指向 `http://127.0.0.1:8787`。PocketBase 的 `8090` 默认只绑定宿主机本机，不建议公网暴露。
+
 ## 当前已知取舍
 
 - owner 网页层当前已支持基于 API Key 登录后签发 HttpOnly session cookie 的浏览器会话；Open API 仍继续使用请求头鉴权
